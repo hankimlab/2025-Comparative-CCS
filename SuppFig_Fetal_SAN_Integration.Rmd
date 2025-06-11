@@ -1,0 +1,237 @@
+---
+title: "Fetal_SAN_Integration"
+output: html_document
+date: "2025-02-17"
+---
+
+# load data and integrate
+```{r}
+
+library(Seurat)
+library(tidyverse)
+
+# load data
+lcm <- readRDS('protze_fetal_san.rds')
+fcm <- readRDS('20240911_farah_cardiomyocytes_annotated.rds')
+fcm <- UpdateSeuratObject(fcm)
+san_acm_fifteen <- subset(fcm, cells=WhichCells(fcm, expression = Region == 'RA', idents=c('SAN head', 'SAN tail', 'Tz-SAN', 'aCM'))) # keep only right atrial CMs
+Idents(san_acm_fifteen) <- san_acm_fifteen$sub_ccs
+
+# rename
+
+lcm <- SetIdent(lcm, WhichCells(lcm, idents='Proliferating'), '19pcw - Proliferating')
+lcm <- SetIdent(lcm, WhichCells(lcm, idents='aCM'), '19pcw - aCM')
+lcm <- SetIdent(lcm, WhichCells(lcm, idents='Transition zone'), '19pcw - Tz-SAN')
+lcm <- SetIdent(lcm, WhichCells(lcm, idents='Sinus venosus'), '19pcw - Sinus venosus')
+lcm <- SetIdent(lcm, WhichCells(lcm, idents='Core SAN'), '19pcw - SA node')
+
+san_acm_fifteen <- SetIdent(san_acm_fifteen, WhichCells(san_acm_fifteen, idents='aCM'), '9-15pcw - aCM')
+san_acm_fifteen <- SetIdent(san_acm_fifteen, WhichCells(san_acm_fifteen, idents='Tz-SAN'), '9-15pcw - Tz-SAN')
+san_acm_fifteen <- SetIdent(san_acm_fifteen, WhichCells(san_acm_fifteen, idents='SAN tail'), '9-15pcw - SA node (tail)')
+san_acm_fifteen <- SetIdent(san_acm_fifteen, WhichCells(san_acm_fifteen, idents='SAN head'), '9-15pcw - SA node (head)')
+
+merged <- merge(lcm, san_acm_fifteen)
+
+merged <- NormalizeData(merged)
+merged <- FindVariableFeatures(merged)
+merged <- ScaleData(merged, features=rownames(merged))
+merged <- RunPCA(merged)
+
+Idents(merged) <- factor(Idents(merged), levels=c('9-15pcw - SA node (head)', '9-15pcw - SA node (tail)', '19pcw - SA node', '19pcw - Sinus venosus', '9-15pcw - Tz-SAN', '19pcw - Tz-SAN', '9-15pcw - aCM', '19pcw - aCM', '19pcw - Proliferating'))
+merged$sub_ccs <- Idents(merged)
+
+# integrate via recpricoal PCA projection
+merged <- IntegrateLayers(object = merged, method = RPCAIntegration, orig.reduction = "pca", new.reduction = "rpca",
+    verbose = FALSE)
+
+merged[["RNA"]] <- JoinLayers(merged[["RNA"]])
+
+merged <- FindNeighbors(merged, reduction = "rpca", dims = 1:20)
+merged <- RunUMAP(merged, dims = 1:20, reduction = "rpca")
+
+fig <- DimPlot(merged, cols=c("#700000", "#C04A4A", "#E0651E", "#C6946E", "#A48ACF", "#8165A8", "#5E6367", "#B0B4B9", "#E4B1C0"), pt.size=0.65) & NoAxes() & theme(plot.title=element_blank(), legend.text = element_text(size=16))
+
+ggsave('integrated_umap.tiff', fig, dpi=600, height=7, width=10)
+
+# only SAN (no non-pacemaker atrial cardiomyocytes)
+
+merged_san <- merge(subset(lcm, idents=c('19pcw - aCM', '19pcw - Proliferating'), invert=T), subset(san_acm_fifteen, idents='9-15pcw - aCM', invert=T))
+
+merged_san <- NormalizeData(merged_san)
+merged_san <- FindVariableFeatures(merged_san)
+merged_san <- ScaleData(merged_san, features=rownames(merged_san))
+merged_san <- RunPCA(merged_san)
+
+Idents(merged_san) <- factor(Idents(merged_san), levels=c('9-15pcw - SA node (head)', '9-15pcw - SA node (tail)', '19pcw - SA node', '19pcw - Sinus venosus', '9-15pcw - Tz-SAN', '19pcw - Tz-SAN'))
+merged_san$sub_ccs <- Idents(merged_san)
+
+merged_san <- IntegrateLayers(object = merged_san, method = RPCAIntegration, orig.reduction = "pca", new.reduction = "rpca",
+    verbose = FALSE)
+
+merged_san[["RNA"]] <- JoinLayers(merged_san[["RNA"]])
+
+merged_san <- FindNeighbors(merged_san, reduction = "rpca", dims = 1:20)
+merged_san <- RunUMAP(merged_san, dims = 1:20, reduction = "rpca")
+
+fig <- DimPlot(merged_san, cols=c("#700000", "#C04A4A", "#E0651E", "#C6946E", "#A48ACF", "#8165A8"), pt.size=1.25) & NoAxes() & NoLegend() & theme(plot.title=element_blank())
+
+ggsave('integrated_umap_sanonly.tiff', fig, dpi=600, height=7, width=7)
+
+
+
+```
+
+# correlation between cell types (9-15pcw and 19pcw)
+```{r}
+
+# get pseudobulk matrices (scaled)
+lcm_avg <- AverageExpression(lcm, return.seurat=T)
+lcm_avg <- GetAssayData(lcm_avg, assay = "RNA", slot = "scale.data")
+fifteen_avg <- AverageExpression(san_acm_fifteen, return.seurat=T)
+fifteen_avg <- GetAssayData(fifteen_avg, assay = "RNA", slot = "scale.data")
+
+# subset to genes common to both datasets
+common_genes <- intersect(rownames(lcm_avg), rownames(fifteen_avg))
+lcm_avg <- lcm_avg[common_genes, ]
+lcm_avg <- lcm_avg[, -5]
+fifteen_avg <- fifteen_avg[common_genes, ]
+
+# compute correlation matrix
+cor_mtx <- cor(fifteen_avg, lcm_avg, method = "pearson")
+rownames(cor_mtx) <- gsub("^g", "", rownames(cor_mtx))
+colnames(cor_mtx) <- gsub("^g", "", colnames(cor_mtx))
+
+library(pheatmap)
+
+tiff(
+  'cor_heatmap_san_9-15_19pcw.tiff',
+  width = 7,
+  height = 6,
+  units = "cm",
+  res = 600
+)
+
+pheatmap(cor_mtx, cluster_rows = FALSE, cluster_cols = FALSE,
+         color = colorRampPalette(c('#f5f9fe', '#7ab6d9', '#08326e'))(1000),
+         border_color = NA, scale = "row", fontsize = 5)
+
+dev.off()
+
+```
+
+# gene expression comparison
+```{r}
+
+# find genes significantly increased or decreased between 9-15pcw SAN and 19pcw SAN
+markers_san_embryo <- FindMarkers(merged, ident.1 = '19pcw - SA node', ident.2=c('9-15pcw - SA node (head)', '9-15pcw - SA node (tail)'))
+markers_san_embryo_up <- markers_san_embryo %>% filter(p_val_adj <= 0.05 & (avg_log2FC) >= log2(1.5) & (pct.1 >= 0.1 | pct.2 >= 0.1))
+markers_san_embryo_down <- markers_san_embryo %>% filter(p_val_adj <= 0.05 & (avg_log2FC) <= log2(1.5) & (pct.1 >= 0.1 | pct.2 >= 0.1))
+
+keepup <- rownames(markers_san_embryo_up)
+keepdown <- rownames(markers_san_embryo_down)
+
+# filter to conserved genes or human/adult-specific
+san_up_conserved <- intersect(keepup, c(shared_san_e, shared_san_a))
+san_down_conserved <- intersect(keepdown, c(shared_san_e, shared_san_a))
+
+san_up_human_specific <- intersect(keepup, ortholog_df[ortholog_df$mm %in% san_human_specific_a,]$hs)
+san_down_human_specific <- intersect(keepdown, ortholog_df[ortholog_df$mm %in% san_human_specific_a,]$hs)
+
+san_up_adult_specific <- intersect(keepup, san_human_adult_specific)
+san_down_adult_specific <- intersect(keepdown, san_human_adult_specific)
+
+merged <- SetIdent(merged, WhichCells(merged, idents=c('9-15pcw - SA node (head)', '9-15pcw - SA node (tail)')), '9-15pcw - SA node')
+merged$sub_ccs_onesan <- Idents(merged)
+
+fig <- VlnPlot(
+  merged,
+  c(san_up_conserved, san_down_conserved),
+  stack = T,
+  flip = T,
+  idents = c('9-15pcw - SA node', '19pcw - SA node'),
+  fill.by = 'ident',
+  cols = c("#E0651E", "#700000")
+) &
+  stat_summary(
+    fun = mean,
+    geom = 'crossbar',
+    width = 0.2,
+    linewidth = 0.25,
+    colour = "black"
+  ) &
+  theme(
+    axis.title.x = element_blank(),
+    axis.ticks.length.x = unit(0.1, "cm"),
+    axis.ticks.length.y = unit(0.1, "cm"),
+    strip.text = element_text(hjust = 0, face = "italic"),
+    axis.text.x = element_blank()
+  ) &
+  NoLegend()
+
+ggsave('conserved_genes_up_down_violin.tiff', fig, dpi=600, width = 4, height=11)
+
+
+```
+
+# expression in adult and iPSC
+```{r}
+
+Idents(kccs) <- kccs$sub_ccs
+
+fig <- VlnPlot(
+  kccs,
+  c(san_up_conserved, san_down_conserved),
+  stack = T,
+  flip = T,
+  fill.by = 'ident',
+  idents = 'SA node',
+  cols='#3D0000'
+) &
+  stat_summary(
+    fun = mean,
+    geom = 'crossbar',
+    width = 0.2,
+    linewidth = 0.25,
+    colour = "black"
+  ) &
+  theme(
+    axis.title.x = element_blank(),
+    axis.ticks.length.x = unit(0.1, "cm"),
+    axis.ticks.length.y = unit(0.1, "cm"),
+    strip.text = element_text(hjust = 0, face = "italic"),
+    axis.text.x = element_blank()
+  ) &
+  NoLegend()
+
+ggsave('/conserved_genes_up_down_violin_adult.tiff', fig, dpi=600, width = 2.75, height=11)
+
+all <- readRDS('iPSC_all_20250506.rds')
+
+fig <- VlnPlot(
+  all,
+  c('HCN1', 'PDE1A', 'TENM4', 'SPHKAP', 'TENM3', 'GNAO1', 'CDH11', 'PRDM6', 'RSRC1', 'CACNA2D2', 'GATA6', 'NPTN', 'ZDHHC2', 'EGLN3', 'SHOX2', 'ATP1B2', 'FZD7', 'PDGFRA', 'BMP4', 'UCHL1'),
+  stack = T,
+  flip = T,
+  fill.by = 'ident',
+  cols=c('#edf8fb', '#ccece6', '#99d8c9', '#66c2a4', '#2ca25f', '#006d2c')
+) &
+  stat_summary(
+    fun = mean,
+    geom = 'crossbar',
+    width = 0.2,
+    linewidth = 0.25,
+    colour = "black"
+  ) &
+  theme(
+    axis.title.x = element_blank(),
+    axis.ticks.length.x = unit(0.1, "cm"),
+    axis.ticks.length.y = unit(0.1, "cm"),
+    strip.text = element_text(hjust = 0, face = "italic"),
+    axis.text.x = element_blank()
+  ) &
+  NoLegend()
+
+ggsave('conserved_genes_up_violin_ipsc.tiff', fig, dpi=600, width = 5, height=11)
+
+```
+
