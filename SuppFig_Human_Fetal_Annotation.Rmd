@@ -1,0 +1,510 @@
+---
+title: "Human_Fetal_Annotation"
+output: html_document
+date: "2025-06-11"
+---
+
+# load libraries and data
+```{r}
+
+library(Seurat)
+library(tidyverse)
+
+# from Farah et al., Nature (2024)
+heart <- readRDS('/Users/marwanbakr/docs/kimlab/scRNA-seq/human_heart/human_heart_developing/overall_heart.rds')
+heart <- UpdateSeuratObject(heart)
+
+```
+
+# identify SAN and subpopulations
+```{r}
+
+acm <- subset(heart, idents=c('aCM', 'ncCM'))
+Idents(acm) <- acm$Region
+ra_acm <- subset(acm, idents='RA') # only right atrial, to identify SAN
+
+ra_acm <- NormalizeData(ra_acm)
+ra_acm <- FindVariableFeatures(ra_acm)
+ra_acm <- ScaleData(ra_acm)
+ra_acm <- RunPCA(ra_acm)
+ra_acm <- FindNeighbors(ra_acm, dims=1:20)
+ra_acm <- RunUMAP(ra_acm, dims=1:20)
+ra_acm <- FindClusters(ra_acm, resolution=0.25)
+
+mark_ra_acm <- FindAllMarkers(ra_acm, only.pos=T)
+
+san <- subset(ra_acm, idents='6')
+
+san <- NormalizeData(san)
+san <- FindVariableFeatures(san)
+san <- ScaleData(san, vars.to.regress = c('nFeature_RNA', 'percent.mt'))
+san <- RunPCA(san)
+san <- FindNeighbors(san, dims=1:20)
+san <- RunUMAP(san, dims=1:20)
+san <- FindClusters(san, resolution=2)
+
+
+san <- SetIdent(san, WhichCells(san, idents=c('5', '9', '10')), 'Transitional SAN')
+san <- SetIdent(san, WhichCells(san, idents=c('1', '7')), 'SAN tail')
+san <- SetIdent(san, WhichCells(san, idents=c('0', '2', '3', '4', '6', '8', '11', '12')), 'SAN head')
+san$sub_ccs <- Idents(san)
+
+DotPlot(san, c('NPPA', 'GJA5', 'NKX2-5', 'TBX18', 'HCN4', 'SHOX2'), cols=c('#E8E2F5', '#280972')) & coord_flip() & theme(axis.title=element_blank(), axis.text.y = element_text(face='italic'), axis.text.x = element_text(angle=45, hjust=1, vjust=0.95))
+
+```
+
+# identify VCS and AVN, and subpopulations
+```{r}
+
+vcm <- subset(heart, idents='vCM')
+
+vcm <- NormalizeData(vcm)
+vcm <- FindVariableFeatures(vcm)
+vcm <- ScaleData(vcm)
+vcm <- RunPCA(vcm)
+vcm <- FindNeighbors(vcm, dims=1:20)
+vcm <- RunUMAP(vcm, dims=1:20)
+vcm <- FindClusters(vcm, resolution=0.2)
+
+mark_vcm <- FindAllMarkers(vcm, only.pos=T, min.pct=0.1)
+
+vcs_avn <- subset(vcm, idents=c('6', '7')) #his-purkinje (irx1/2/3, rcan1, slit2, gja5), and avc (rspo3, bmp2)
+
+vcs_avn <- NormalizeData(vcs_avn)
+vcs_avn <- FindVariableFeatures(vcs_avn)
+vcs_avn <- ScaleData(vcs_avn)
+vcs_avn <- RunPCA(vcs_avn)
+vcs_avn <- FindNeighbors(vcs_avn, dims=1:20)
+vcs_avn <- RunUMAP(vcs_avn, dims=1:20)
+vcs_avn <- FindClusters(vcs_avn, resolution=2)
+
+vcs_avn <- SetIdent(vcs_avn, WhichCells(vcs_avn, idents=c('1', '5', '9')), 'Purkinje fibers')
+vcs_avn <- SetIdent(vcs_avn, WhichCells(vcs_avn, idents=c('2', '3', '4', '6')), 'His bundle and branches')
+vcs_avn <- SetIdent(vcs_avn, WhichCells(vcs_avn, idents=c('8', '12')), 'Lower nodal bundle')
+vcs_avn <- SetIdent(vcs_avn, WhichCells(vcs_avn, idents=c('0', '7', '10', '11')), 'Compact AVN')
+vcs_avn$sub_ccs <- Idents(vcs_avn)
+
+DotPlot(vcs_avn, c('GJA5', 'SEMA3A', 'IRX1', 'RCAN1', 'TBX3', 'BMP2', 'MYH7', 'MYH6'), cols=c('#E8E2F5', '#280972')) & coord_flip() & theme(axis.title=element_blank(), axis.text.y = element_text(face='italic'), axis.text.x = element_text(angle=45, hjust=1, vjust=0.95))
+
+```
+
+# combine SAN, AVN and VCS
+```{r}
+
+fccs <- merge(vcs_avn, san)
+
+fccs <- NormalizeData(fccs)
+fccs <- FindVariableFeatures(fccs)
+fccs <- ScaleData(fccs)
+fccs <- RunPCA(fccs)
+fccs <- FindNeighbors(fccs, dims=1:20)
+fccs <- RunUMAP(fccs, dims=1:20)
+
+```
+
+
+# identify cell populations
+```{r}
+
+vcm <- subset(heart, idents='vCM')
+
+vcm <- NormalizeData(vcm)
+vcm <- FindVariableFeatures(vcm)
+vcm <- ScaleData(vcm)
+vcm <- RunPCA(vcm)
+vcm <- FindNeighbors(vcm, dims=1:15)
+vcm <- RunUMAP(vcm, dims=1:15)
+vcm <- FindClusters(vcm, resolution=0.3)
+
+mark_vcm <- FindAllMarkers(vcm, only.pos=T)
+
+vcm_ccs <- subset(vcm, idents=c('9', '10')) #his-purkinje (irx1/2/3, rcan1, slit2, gja5), and avc (rspo3, bmp2)
+
+ra_acm <- NormalizeData(ra_acm)
+ra_acm <- FindVariableFeatures(ra_acm)
+ra_acm <- ScaleData(ra_acm)
+ra_acm <- RunPCA(ra_acm)
+ra_acm <- FindNeighbors(ra_acm, dims=1:20)
+ra_acm <- RunUMAP(ra_acm, dims=1:20)
+ra_acm <- FindClusters(ra_acm, resolution=0.25)
+
+mark_ra_acm <- FindAllMarkers(ra_acm, only.pos=T)
+
+san <- subset(ra_acm, idents='6')
+
+fccs <- merge(vcm_ccs, san)
+
+fccs <- NormalizeData(fccs)
+fccs <- FindVariableFeatures(fccs)
+fccs <- ScaleData(fccs)
+fccs <- RunPCA(fccs)
+fccs <- FindNeighbors(fccs, dims=1:20)
+fccs <- RunUMAP(fccs, dims=1:20)
+fccs <- FindClusters(fccs, resolution=0.5)
+
+fccs <- SetIdent(fccs, WhichCells(fccs, idents='0'), 'His-bundle-branch') #irx1, irx2, rcan1, tbx3
+fccs <- SetIdent(fccs, WhichCells(fccs, idents='3'), 'Purkinje') #gja5, slit2, irx3, sema3a
+fccs <- SetIdent(fccs, WhichCells(fccs, idents=c('4','5')), 'AVC-AVN') #rspo3, bmp2, tbx3
+fccs <- SetIdent(fccs, WhichCells(fccs, idents=c('1', '2', '6', '7', '8')), 'SAN') #shox2, tbx18, isl1, tbx3, cacna1d, vsnl1
+fccs$sub_ccs <- Idents(fccs)
+
+
+DotPlot(
+  heart,
+  c(
+    'IRX3',
+    'GJA5',
+    'SLIT2',
+    'IRX1',
+    'IRX2',
+    'RCAN1',
+    'RSPO3',
+    'BMP2',
+    'TBX3',
+    'ISL1',
+    'TBX18',
+    'SHOX2'
+  ),
+  idents = c('vCM', 'aCM', 'Purkinje', 'His-bundle-branch', 'AVC-AVN', 'SAN'),
+  cols = c('whitesmoke', '#280972')
+) & coord_flip() & theme(
+  axis.title = element_blank(),
+  axis.text.y = element_text(
+    size = 12,
+    face = 'italic',
+    vjust = 0.5,
+    hjust = 0.5
+  ))
+
+```
+
+# attempt 2: identify SAN by subclustering ncCM cells
+```{r}
+
+nccm <- subset(cm, idents=c('ncCM-AVC-like', 'ncCM-IFT-like'))
+nccm <- NormalizeData(nccm)
+nccm <- FindVariableFeatures(nccm)
+nccm <- ScaleData(nccm)
+nccm <- RunPCA(nccm)
+nccm <- FindNeighbors(nccm, dims=1:20)
+nccm <- RunUMAP(nccm, dims=1:20)
+
+nccm <- subset(cm, idents=c('ncCM-AVC-like', 'ncCM-IFT-like'))
+nccm <- NormalizeData(nccm)
+nccm <- FindVariableFeatures(nccm)
+nccm <- ScaleData(nccm, vars.to.regress = c('nFeature_RNA', 'percent.mt'))
+nccm <- RunPCA(nccm)
+nccm <- FindNeighbors(nccm, dims=1:20)
+nccm <- RunUMAP(nccm, dims=1:20)
+nccm <- FindClusters(nccm, resolution=0.75)
+
+avc_avn <- subset(nccm, idents=c('2', '8'))
+avc_avn <- NormalizeData(avc_avn)
+avc_avn <- FindVariableFeatures(avc_avn)
+avc_avn <- ScaleData(avc_avn)
+avc_avn <- RunPCA(avc_avn)
+avc_avn <- FindNeighbors(avc_avn, dims=1:20)
+avc_avn <- RunUMAP(avc_avn, dims=1:20)
+avc_avn <- FindClusters(avc_avn, resolution=1)
+
+ven_cm <- subset(cm, idents=c('vCM-Early', 'vCM-Late', 'vCM - Proliferating'))
+ven_cm <- NormalizeData(ven_cm)
+ven_cm <- FindVariableFeatures(ven_cm)
+ven_cm <- ScaleData(ven_cm)
+ven_cm <- RunPCA(ven_cm)
+ven_cm <- FindNeighbors(ven_cm, dims=1:20)
+ven_cm <- RunUMAP(ven_cm, dims=1:20)
+
+ven_cm <- subset(cm, idents=c('vCM-Early', 'vCM-Late', 'vCM - Proliferating'))
+ven_cm <- NormalizeData(ven_cm)
+ven_cm <- FindVariableFeatures(ven_cm)
+ven_cm <- ScaleData(ven_cm, vars.to.regress = c('nFeature_RNA', 'percent.mt'))
+ven_cm <- RunPCA(ven_cm)
+ven_cm <- FindNeighbors(ven_cm, dims=1:10)
+ven_cm <- RunUMAP(ven_cm, dims=1:10)
+ven_cm <- FindClusters(ven_cm, resolution=1.5)
+
+vcs <- subset(ven_cm, idents=c('6', '21'))
+vcs <- NormalizeData(vcs)
+vcs <- FindVariableFeatures(vcs)
+vcs <- ScaleData(vcs, vars.to.regress = c('nFeature_RNA', 'percent.mt'))
+vcs <- RunPCA(vcs)
+vcs <- FindNeighbors(vcs, dims=1:20)
+vcs <- RunUMAP(vcs, dims=1:20)
+vcs <- FindClusters(vcs, resolution=0.25)
+
+```
+
+# attempt 3
+```{r}
+
+cm <- readRDS('/Users/marwanbakr/docs/kimlab/scRNA-seq/human_heart/human_heart_developing/cardiomyocyte_compartment.rds')
+cm <- UpdateSeuratObject(cm)
+
+fig <- DimPlot(cm, group.by='populations', cols=c('#219ebc', '#1e6091', '#1d3557', '#f9844a', '#dc2f02', '#9b2226', '#a3b18a', '#588157', '#344e41')) & NoAxes() & theme(plot.title=element_blank())
+
+ggsave('/Users/marwanbakr/docs/kimlab/manuscripts/2024 CCS comparative/figures/supp_figs/cm_dimplot.tiff', fig, dpi = 600, width=9, height=4.5)
+
+Idents(cm) <- cm$populations
+nccm_ift <- subset(cm, idents='ncCM-IFT-like')
+Idents(nccm_ift) <- nccm_ift$Region
+nccm_ift_ra <- subset(nccm_ift, idents='RA')
+nccm_ift_ra <- NormalizeData(nccm_ift_ra)
+nccm_ift_ra <- FindVariableFeatures(nccm_ift_ra)
+nccm_ift_ra <- ScaleData(nccm_ift_ra, vars.to.regress = c('nFeature_RNA', 'percent.mt'))
+nccm_ift_ra <- RunPCA(nccm_ift_ra)
+nccm_ift_ra <- FindNeighbors(nccm_ift_ra, dims=1:20)
+nccm_ift_ra <- RunUMAP(nccm_ift_ra, dims=1:20)
+nccm_ift_ra <- FindClusters(nccm_ift_ra, resolution=0.15)
+
+nccm_ift_ra <- SetIdent(nccm_ift_ra, WhichCells(nccm_ift_ra, idents='0'), 'SA node (head)')
+nccm_ift_ra <- SetIdent(nccm_ift_ra, WhichCells(nccm_ift_ra, idents='1'), 'Tz-SAN')
+nccm_ift_ra <- SetIdent(nccm_ift_ra, WhichCells(nccm_ift_ra, idents='2'), 'SA node (tail)')
+nccm_ift_ra$sub_ccs <- Idents(nccm_ift_ra)
+
+Idents(nccm_ift_ra) <- factor(Idents(nccm_ift_ra), levels=c('SA node (head)', 'SA node (tail)', 'Tz-SAN'))
+fig <- DimPlot(nccm_ift_ra, cols=c('#641619', '#CA4E4C', '#E68D75'), pt.size=1.5) & NoAxes() & theme(legend.text=element_text(size=14))
+
+ggsave('/Users/marwanbakr/docs/kimlab/manuscripts/2024 CCS comparative/figures/supp_figs/san_sub_dimplot.tiff', fig, dpi = 600, width=7, height=4.5)
+
+avc <- subset(cm, idents='ncCM-AVC-like')
+avc <- NormalizeData(avc)
+avc <- FindVariableFeatures(avc)
+avc <- ScaleData(avc, vars.to.regress = c('nFeature_RNA', 'percent.mt'))
+avc <- RunPCA(avc)
+avc <- FindNeighbors(avc, dims=1:20)
+avc <- RunUMAP(avc, dims=1:20)
+avc <- FindClusters(avc, resolution=1)
+
+avc <- SetIdent(avc, WhichCells(avc, idents=c('0', '2', '3', '4')), 'Compact AV node')
+avc <- SetIdent(avc, WhichCells(avc, idents='1'), 'Lower nodal bundle')
+avc$sub_ccs <- Idents(avc)
+
+Idents(avc) <- factor(Idents(avc), levels=c('Compact AV node', 'Lower nodal bundle'))
+fig <- DimPlot(avc, cols=c('#F4C542', '#9DC183'), pt.size=1.5) & NoAxes() & theme(legend.text=element_text(size=14))
+
+ggsave('/Users/marwanbakr/docs/kimlab/manuscripts/2024 CCS comparative/figures/supp_figs/avn_sub_dimplot.tiff', fig, dpi = 600, width=7, height=4.5)
+
+ven_cm <- subset(cm, idents=c('vCM-Early', 'vCM-Late', 'vCM - Proliferating'))
+ven_cm <- NormalizeData(ven_cm)
+ven_cm <- FindVariableFeatures(ven_cm)
+ven_cm <- ScaleData(ven_cm, vars.to.regress = c('nFeature_RNA', 'percent.mt'))
+ven_cm <- RunPCA(ven_cm)
+ven_cm <- FindNeighbors(ven_cm, dims=1:10)
+ven_cm <- RunUMAP(ven_cm, dims=1:10)
+ven_cm <- FindClusters(ven_cm, resolution=0.25)
+
+vcs <- subset(ven_cm, idents='6')
+vcs <- NormalizeData(vcs)
+vcs <- FindVariableFeatures(vcs)
+vcs <- ScaleData(vcs, vars.to.regress = c('nFeature_RNA', 'percent.mt'))
+vcs <- RunPCA(vcs)
+vcs <- FindNeighbors(vcs, dims=1:20)
+vcs <- RunUMAP(vcs, dims=1:20)
+vcs <- FindClusters(vcs, resolution=0.25)
+
+vcs <- SetIdent(vcs, WhichCells(vcs, idents='0'), 'His bundle')
+vcs <- SetIdent(vcs, WhichCells(vcs, idents='1'), 'Purkinje fibers')
+vcs$sub_ccs <- Idents(vcs)
+
+Idents(vcs) <- factor(Idents(vcs), levels=c('His bundle', 'Purkinje fibers'))
+fig <- DimPlot(vcs, cols=c('#7CB8B2', '#8F7BA3'), pt.size=1.5) & NoAxes() & theme(legend.text=element_text(size=14))
+
+ggsave('/Users/marwanbakr/docs/kimlab/manuscripts/2024 CCS comparative/figures/supp_figs/vcs_sub_dimplot.tiff', fig, dpi = 600, width=7, height=4.5)
+
+fccs <- merge(nccm_ift_ra, c(avc, vcs))
+
+fccs <- NormalizeData(fccs)
+fccs <- FindVariableFeatures(fccs)
+fccs <- ScaleData(fccs)
+fccs <- RunPCA(fccs)
+fccs <- FindNeighbors(fccs, dims=1:25)
+fccs <- RunUMAP(fccs, dims=1:25)
+
+```
+
+# combined cm
+```{r}
+
+cm <- readRDS('/Users/marwanbakr/docs/kimlab/scRNA-seq/human_heart/human_heart_developing/cardiomyocyte_compartment.rds')
+fccs <- readRDS('/Users/marwanbakr/docs/kimlab/scRNA-seq/human_heart/human_heart_developing/farah_ccs_20240910.rds')
+
+cm <- SetIdent(cm, WhichCells(fccs, idents='SAN head'), 'SAN head')
+cm <- SetIdent(cm, WhichCells(fccs, idents='SAN tail'), 'SAN tail')
+cm <- SetIdent(cm, WhichCells(fccs, idents='Tz-SAN'), 'Tz-SAN')
+cm <- SetIdent(cm, WhichCells(fccs, idents='Compact AVN'), 'Compact AVN')
+cm <- SetIdent(cm, WhichCells(fccs, idents='Lower nodal bundle'), 'Lower nodal bundle')
+cm <- SetIdent(cm, WhichCells(fccs, idents='His bundle'), 'His bundle')
+cm <- SetIdent(cm, WhichCells(fccs, idents='Purkinje fibers'), 'Purkinje fibers')
+
+cm$sub_ccs <- Idents(cm)
+
+saveRDS(cm, '/Users/marwanbakr/docs/kimlab/scRNA-seq/human_heart/human_heart_developing/20240911_farah_cardiomyocytes_annotated.rds')
+
+Idents(fcm) <- factor(Idents(fcm), levels=c('SA node (head)', 'SA node (tail)', 'Tz-SAN', 'Compact AV node', 'Lower nodal bundle', 'His bundle', 'Purkinje fibers', 'aCM', 'vCM', 'ncCM'))
+
+fig <- DotPlot(
+  fcm,
+  c(
+    'SCN5A',
+    'GJA5',
+    'NKX2-5',
+    'TBX18',
+    'HCN4',
+    'TBX3',
+    'VSNL1',
+    'SHOX2'
+  ),
+  idents=c('SA node (head)', 'SA node (tail)', 'Tz-SAN', 'aCM'),
+  cols = c('whitesmoke', '#ad2831'),
+  dot.scale = 10,
+  dot.min = -0.10
+) &
+  scale_size(breaks = c(0, 20, 40, 60, 80, 100)) &
+  theme(
+    axis.title = element_blank(),
+    axis.text.y = element_text(face='italic'),
+    panel.border = element_rect(color = "black", fill = NA, size = 1),
+    axis.line = element_blank(),
+    axis.text.x=element_blank()
+  ) & coord_flip() & guides(size = guide_legend(order=1, title='Percent Expression'))
+
+ggsave('/Users/marwanbakr/docs/kimlab/manuscripts/2024 CCS comparative/figures/supp_figs/dotplot_san.tiff', fig, dpi=600, width=7, height=6)
+
+fig <- DotPlot(
+  fcm,
+  c(
+    'CRNDE',
+    'IRX4',
+    'MYH7',
+    'MYL2',
+    'MYH6',
+    'MYL7',
+    'CACNA1D',
+    'BMP2',
+    'TBX3'
+  ),
+  idents=c('Compact AV node', 'Lower nodal bundle', 'aCM', 'vCM'),
+  cols = c('whitesmoke', '#ad2831'),
+  dot.scale = 10,
+  dot.min = -0.10
+) &
+  scale_size(breaks = c(0, 20, 40, 60, 80, 100)) &
+  theme(
+    axis.title = element_blank(),
+    axis.text.y = element_text(face='italic'),
+    panel.border = element_rect(color = "black", fill = NA, size = 1),
+    axis.line = element_blank(),
+    axis.text.x=element_blank()
+  ) & coord_flip() & guides(size = guide_legend(order=1, title='Percent Expression'))
+
+ggsave('/Users/marwanbakr/docs/kimlab/manuscripts/2024 CCS comparative/figures/supp_figs/dotplot_avn.tiff', fig, dpi=600, width=7, height=6)
+
+fig <- DotPlot(
+  fcm,
+  c(
+    'MYOM1',
+    'SLIT2',
+    'GJA5',
+    'TBX3',
+    'IRX1'
+  ),
+  idents=c('His bundle', 'Purkinje fibers', 'vCM'),
+  cols = c('whitesmoke', '#ad2831'),
+  dot.scale = 10,
+  dot.min = -0.10
+) &
+  scale_size(breaks = c(0, 20, 40, 60, 80, 100)) &
+  theme(
+    axis.title = element_blank(),
+    axis.text.y = element_text(face='italic'),
+    panel.border = element_rect(color = "black", fill = NA, size = 1),
+    axis.line = element_blank(),
+    axis.text.x=element_blank()
+  ) & coord_flip() & guides(size = guide_legend(order=1, title='Percent Expression'))
+
+ggsave('/Users/marwanbakr/docs/kimlab/manuscripts/2024 CCS comparative/figures/supp_figs/dotplot_vcs.tiff', fig, dpi=600, width=7, height=6)
+
+fig <- DotPlot(
+  fcm,
+  c(
+    'SCN5A',
+    'GJA5',
+    'NKX2-5',
+    'TBX18',
+    'HCN4',
+    'TBX3',
+    'VSNL1',
+    'SHOX2'
+  ),
+  idents=c('SA node (head)', 'SA node (tail)', 'Tz-SAN', 'aCM'),
+  cols = c('whitesmoke', '#ad2831'),
+  dot.scale = 10,
+  dot.min = -0.10
+) &
+  scale_size(breaks = c(0, 20, 40, 60, 80, 100)) &
+  theme(
+    axis.title = element_blank(),
+    axis.text.y = element_text(face='italic'),
+    panel.border = element_rect(color = "black", fill = NA, size = 1),
+    axis.line = element_blank(),
+    axis.text.x = element_text(angle = 90, hjust = 1, vjust=0.5)
+  ) & coord_flip()
+
+ggsave('/Users/marwanbakr/docs/kimlab/manuscripts/2024 CCS comparative/figures/supp_figs/dotplot_san_axis_text.tiff', fig, dpi=600, width=7, height=6)
+
+fig <- DotPlot(
+  fcm,
+  c(
+    'CRNDE',
+    'IRX4',
+    'MYH7',
+    'MYL2',
+    'MYH6',
+    'MYL7',
+    'CACNA1D',
+    'BMP2',
+    'TBX3'
+  ),
+  idents=c('Compact AV node', 'Lower nodal bundle', 'aCM', 'vCM'),
+  cols = c('whitesmoke', '#ad2831'),
+  dot.scale = 10,
+  dot.min = -0.10
+) &
+  scale_size(breaks = c(0, 20, 40, 60, 80, 100)) &
+  theme(
+    axis.title = element_blank(),
+    axis.text.y = element_text(face='italic'),
+    panel.border = element_rect(color = "black", fill = NA, size = 1),
+    axis.line = element_blank(),
+    axis.text.x = element_text(angle = 90, hjust = 1, vjust=0.5)
+  ) & coord_flip()
+
+ggsave('/Users/marwanbakr/docs/kimlab/manuscripts/2024 CCS comparative/figures/supp_figs/dotplot_avn_axis_text.tiff', fig, dpi=600, width=7, height=6)
+
+fig <- DotPlot(
+  fcm,
+  c(
+    'MYOM1',
+    'SLIT2',
+    'GJA5',
+    'TBX3',
+    'IRX1'
+  ),
+  idents=c('His bundle', 'Purkinje fibers', 'vCM'),
+  cols = c('whitesmoke', '#ad2831'),
+  dot.scale = 10,
+  dot.min = -0.10
+) &
+  scale_size(breaks = c(0, 20, 40, 60, 80, 100)) &
+  theme(
+    axis.title = element_blank(),
+    axis.text.y = element_text(face='italic'),
+    panel.border = element_rect(color = "black", fill = NA, size = 1),
+    axis.line = element_blank(),
+    axis.text.x = element_text(angle = 90, hjust = 1, vjust=0.5)
+  ) & coord_flip()
+
+ggsave('/Users/marwanbakr/docs/kimlab/manuscripts/2024 CCS comparative/figures/supp_figs/dotplot_vcs_axis_text.tiff', fig, dpi=600, width=7, height=6)
+
+```

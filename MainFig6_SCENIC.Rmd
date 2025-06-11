@@ -1,0 +1,522 @@
+---
+title: "SCENIC"
+output: html_document
+date: "2025-06-11"
+---
+
+# load libraries
+```{r}
+
+library(Seurat)
+library(tidyverse)
+library(scCustomize)
+
+```
+
+# human adult - filter activating/repressive regulons to run AUCell separately
+```{r}
+
+#load pySCENIC output
+reg <- read.csv('kanemaru_san_avn_ax_cm_raw_reg_mingenes5.csv')
+
+#clean dataframe so it matches format required for pySCENIC
+reg <- rbind(colnames(reg), reg)
+reg[reg == "X"] <- ""
+reg[reg == "X.1"] <- ""
+reg[reg == "Enrichment.1"] <- "Enrichment"
+reg[reg == "Enrichment.2"] <- "Enrichment"
+reg[reg == "Enrichment.3"] <- "Enrichment"
+reg[reg == "Enrichment.4"] <- "Enrichment"
+reg[reg == "Enrichment.5"] <- "Enrichment"
+reg[reg == "Enrichment.6"] <- "Enrichment"
+reg[reg == "Enrichment.7"] <- "Enrichment"
+
+#remove repressing regulons
+reg_act <- reg[!grepl("repressing", reg$Enrichment.5), ]
+
+#export as csv
+write.table(reg_act, 
+            "kanemaru_san_avn_ax_cm_raw_reg_mingenes5_activatingonly.csv",
+            row.names = F, 
+            col.names = F, 
+            sep=",")
+
+reg_rep <- reg[!grepl("activating", reg$Enrichment.5), ]
+
+write.table(reg_rep, 
+            "kanemaru_san_avn_ax_cm_raw_reg_mingenes5_repressingonly.csv",
+            row.names = F, 
+            col.names = F, 
+            sep=",")
+
+```
+
+# TF activity matrices in mouse and human (activating)
+```{r}
+
+# activating human
+
+auc_mtx_activating_hs <- read.csv('san_avn_ax_cm_raw_mingenes5_activatingonly_auc_mtx.csv', row.names=1)
+
+# clean colnames and replace periods with dashes to match gene expression matrix
+colnames(auc_mtx_activating_hs) <- sub("\\.{3}$", "", colnames(auc_mtx_activating_hs))
+colnames(auc_mtx_activating_hs) <- sub("\\.", "-", colnames(auc_mtx_activating_hs))
+
+# Filter based on cell state and region, and exclude 'unclassified' cell states
+kcm_sub <- subset(
+  kcm,
+  subset = (cell_state %in% c("vCM2", "aCM1", "SAN_P_cell", "AVN_P_cell", "AVN_bundle_cell", "Purkinje_cell")) &
+            (region %in% c("SAN", "AVN", "AX"))
+)
+
+percent_hs <- Percent_Expressing(kcm_sub, colnames(auc_mtx_activating_hs), group_by='sub_ccs')
+
+san_tfs_hs <- rownames(percent_hs)[percent_hs[,"SA.node"] >= 25]
+avn_tfs_hs <- rownames(percent_hs)[percent_hs[,"Compact.AV.node"] >= 25]
+avb_tfs_hs <- rownames(percent_hs)[percent_hs[,"His.bundle"] >= 25]
+purkinje_tfs_hs <- rownames(percent_hs)[percent_hs[,"Purkinje.fibers"] >= 25]
+regulons_activating_hs <- unique(c(san_tfs_hs, avn_tfs_hs, avb_tfs_hs, purkinje_tfs_hs))
+
+# subset AUC matrix to only include filtered regulons
+auc_subset_activating_hs <- auc_mtx_activating_hs[,colnames(auc_mtx_activating_hs) %in% regulons_activating_hs]
+
+# generate matrix of mean regulon AUC in each region (n_regions x n_regulons)
+auc_subset_activating_hs <- auc_subset_activating_hs %>% group_by(kcm_sub@meta.data$sub_ccs)
+mean_auc_subset_activating_hs <- auc_subset_activating_hs %>%
+  summarise(across(everything(), ~mean(.[`kcm_sub@meta.data$sub_ccs` %in% c("SA node", "Compact AV node", "His bundle", "Purkinje fibers", "aCM", "vCM")])))
+rownames(mean_auc_subset_activating_hs) <- mean_auc_subset_activating_hs$`kcm_sub@meta.data$sub_ccs`
+mean_auc_subset_activating_hs <- mean_auc_subset_activating_hs[c("SA node", "Compact AV node", "His bundle", "Purkinje fibers", "aCM", "vCM"),]
+mean_auc_subset_activating_hs$`kcm_sub@meta.data$sub_ccs` <- NULL
+rownames(mean_auc_subset_activating_hs) <- c("SA node", "Compact AV node", "His bundle", "Purkinje fibers", "aCM", "vCM")
+
+```
+
+# plot AUC heatmap
+```{r}
+
+library(ComplexHeatmap)
+library(circlize)
+
+# define the color palette function
+col_fun <- colorRamp2(
+  seq(min(t(apply(t(mean_auc_subset_activating_hs), 1, scale))), max(t(apply(t(mean_auc_subset_activating_hs), 1, scale))), length.out = 8),
+  c(
+    "#f7fbff",
+    "#deebf7",
+    "#c6dbef",
+    "#9ecae1",
+    "#6baed6",
+    "#4292c6",
+    "#00509d",
+    "#002855"
+  )
+)
+
+set.seed(1)
+
+# create heatmap
+fig <- Heatmap(
+  apply(t(mean_auc_subset_activating_hs), 1, scale),
+  col = col_fun,
+  cluster_rows = FALSE,
+  border = F,
+  show_row_names = FALSE,
+  column_names_gp = gpar(fontsize = 10),
+  column_title = NULL,
+  show_heatmap_legend = F,
+  row_km_repeats = 100,
+  column_km_repeats = 100
+) 
+
+tiff('auc_heatmap_adult.tiff', 
+     width = 14, height = 4, units = "in", res = 600)
+
+draw(fig)
+
+dev.off()
+
+legend <- Legend(
+  col_fun = col_fun,
+  title = "Scaled mean activity",
+  direction = "horizontal",
+  title_gp = gpar(fontface = "plain"),
+  title_position = "topcenter"
+)
+
+tiff('auc_heatmap_adult_legend.tiff', 
+     width = 1.65, height = 0.75, units = "in", res = 2000)
+
+draw(legend)
+
+dev.off()
+
+```
+
+# flow diagram to visualize predicted TF targets
+```{r}
+
+library(ggalluvial)
+
+extract_genes <- function(genelist) {
+  genes <- unlist(strsplit(genelist, "\\), \\("))  # split by "), ("
+  genes <- gsub("[^a-zA-Z0-9,]", "", genes) # remove unwanted characters
+  gene_list <- strsplit(genes, ",")
+  
+  # extract every alternate element starting from the first
+  return(unlist(gene_list)[seq(1, length(unlist(gene_list)), by = 2)])
+}
+
+reg_act <- reg[!grepl("repressing", reg$Enrichment.5), ]
+reg_act <- reg_act[,c("X", "Enrichment.6")]
+reg_act <- reg_act[-c(1,2,3),]
+colnames(reg_act)[colnames(reg_act) == "X"] <- "tf"
+colnames(reg_act)[colnames(reg_act) == "Enrichment.6"] <- "targets"
+reg_act <- reg_act %>%
+  mutate(genelist = sapply(targets, extract_genes))
+reg_act <- reg_act %>% unnest(genelist)
+reg_act <- reg_act[reg_act$genelist %in% c(shared_san_a, shared_avn_a, shared_his_a, shared_pf_a, shared_nodes_a, shared_vcs_a),]
+reg_act <- reg_act[reg_act$tf %in% regulons_activating_hs,]
+
+library(tidyr)
+
+links <- reg_act[colnames(reg_act) %in% c('tf', 'genelist')]
+links <- links %>% unnest(genelist)
+links <- unique(links)
+
+filter_rows <- function(df, expression_data) {
+  rows_to_keep <- c()
+  
+  for (i in 1:nrow(df)) {
+    tf <- df$tf[i]
+    target_gene <- df$genelist[i]
+    
+    # get the cells where TF is expressed
+    tf_cells <- WhichCells(expression_data, expression = !!as.name(tf) > 0)
+    
+    # get the cells where target gene is expressed
+    target_cells <- WhichCells(expression_data, expression = !!as.name(target_gene) > 0)
+    
+    expressed_in_tf_cells <- length(intersect(tf_cells, target_cells)) / length(tf_cells)
+    
+    # if target gene is expressed in at least 40% of the TF cells, keep the row
+    if (!is.na(expressed_in_tf_cells) && expressed_in_tf_cells >= 0.25) {
+      rows_to_keep <- c(rows_to_keep, i)
+    }
+  }
+  
+  # subset the dataframe to keep only the rows that meet the criteria
+  filtered_df <- df[rows_to_keep, ]
+  
+  return(filtered_df)
+}
+
+links <- filter_rows(links, kccs)
+links <- links %>% filter(tf != genelist)
+links <- links %>% filter(genelist %!in% tf)
+links <- links[links$tf %in% c(hsa_san, hsa_avn, hsa_his, hsa_pf, hsa_nodes, hsa_vcs),]
+tfs <- links$tf
+
+assign_node_group <- function(gene) {
+  if (gene %in% links$tf) {
+    return("tf")
+  } else if (gene %in% shared_san_a) {
+    return("SAN")
+  } else if (gene %in% shared_avn_a) {
+    return("cAVN")
+  } else if (gene %in% shared_nodes_a) {
+    return("Nodes")
+  } else if (gene %in% shared_his_a) {
+    return("HIS")
+  } else if (gene %in% shared_pf_a) {
+    return("PF")
+  } else if (gene %in% shared_vcs_a) {
+    return("VCS")
+  } else {
+    return(NA)
+  }
+}
+
+links$LinkGroup <- sapply(links$genelist, assign_node_group)
+
+# set 'LinkGroup' as a factor to control order in genelist
+links$LinkGroup <- factor(links$LinkGroup, levels = c("SAN", "cAVN", "Nodes", "HIS", "PF", "VCS"))
+
+# calculate connection counts and scores for TF sorting (more proximal CCS connections --> more distal CCS connections)
+connection_counts <- links %>%
+  group_by(tf) %>%
+  summarise(
+    SAN = sum(LinkGroup == "SAN"),
+    cAVN = sum(LinkGroup == "cAVN"),
+    Nodes = sum(LinkGroup == "Nodes"),
+    HIS = sum(LinkGroup == "HIS"),
+    PF = sum(LinkGroup == "PF"),
+    VCS = sum(LinkGroup == "VCS"),
+    total_connections = n(),
+    .groups = 'drop'
+  ) %>%
+  mutate(
+    # calculate the total score based on specified weights
+    total_score = (SAN * 5 + cAVN * 4 + Nodes * 3 + HIS * 2 + PF * 1 + VCS * 0) / total_connections
+  ) %>%
+  arrange(desc(total_score))
+
+# reorder the tf column in links based on total_score
+links$tf <- factor(links$tf, levels = connection_counts$tf)
+
+genelist_levels <- links %>%
+  arrange(LinkGroup, genelist) %>%
+  distinct(genelist) %>%
+  pull(genelist)
+
+# set 'genelist' as a factor with unique levels ordered by 'LinkGroup'
+links$genelist <- factor(links$genelist, levels = genelist_levels)
+
+pal <- c(
+  "SAN" = "#861d21",
+  "cAVN" = "#f4c542",
+  "Nodes" = "#CC8836",
+  "HIS" = "#7cb8b2",
+  "PF" = "#8f7ba3",
+  "VCS" = "#859cab"
+)
+
+fig <- ggplot(links, aes(axis1 = tf, axis2 = genelist, y = 1, fill = LinkGroup)) +
+  geom_alluvium(aes(fill = LinkGroup)) +
+  geom_stratum() +
+  geom_text(stat = "stratum", aes(label = after_stat(stratum))) +
+  scale_x_discrete(limits = c("Transcription Factor", "Gene List"), expand = c(0.1, 0.1)) +
+  scale_fill_brewer(type = "qual", palette = "Set3") + 
+  theme_void() +
+  theme(
+    legend.position = "none",
+    plot.margin = unit(c(0, 0, 0, 0), "cm")
+  )
+
+ggsave("flow_adult.svg", fig, width=4.5, height=8)
+
+```
+
+# below is all same as above, but for human fetal CCS
+# human embryonic - filter activating/repressive regulons to run AUCell separately
+```{r}
+
+#load pySCENIC output
+reg <- read.csv('human_ivs_ra_ccs_raw_reg_mingenes5_20241003.csv')
+
+#clean dataframe so it matches format required for pySCENIC
+reg <- rbind(colnames(reg), reg)
+reg[reg == "X"] <- ""
+reg[reg == "X.1"] <- ""
+reg[reg == "Enrichment.1"] <- "Enrichment"
+reg[reg == "Enrichment.2"] <- "Enrichment"
+reg[reg == "Enrichment.3"] <- "Enrichment"
+reg[reg == "Enrichment.4"] <- "Enrichment"
+reg[reg == "Enrichment.5"] <- "Enrichment"
+reg[reg == "Enrichment.6"] <- "Enrichment"
+reg[reg == "Enrichment.7"] <- "Enrichment"
+
+#remove repressing regulons
+reg_act <- reg[!grepl("repressing", reg$Enrichment.5), ]
+
+#export as csv
+write.table(reg_act, 
+            "human_ivs_ra_ccs_raw_reg_mingenes5_20241003_activatingonly.csv",
+            row.names = F, 
+            col.names = F, 
+            sep=",")
+
+reg_rep <- reg[!grepl("activating", reg$Enrichment.5), ]
+
+write.table(reg_rep, 
+            "human_ivs_ra_ccs_raw_reg_mingenes5_20241003_repressingonly.csv",
+            row.names = F, 
+            col.names = F, 
+            sep=",")
+
+```
+
+
+# TF activity matrices in human fetus (activating)
+```{r}
+
+# activating human
+
+auc_mtx_activating_hs <- read.csv('human_ivs_ra_ccs_raw_reg_mingenes5_20241003_activatingonly_auc_mtx.csv', row.names=1)
+
+# clean colnames and replace periods with dashes to match gene expression matrix
+colnames(auc_mtx_activating_hs) <- sub("\\.{3}$", "", colnames(auc_mtx_activating_hs))
+colnames(auc_mtx_activating_hs) <- sub("\\.", "-", colnames(auc_mtx_activating_hs))
+
+#filter putative regulon TFs for each region by percent expression (10%)
+
+library(scCustomize)
+
+
+percent_hs <- Percent_Expressing(fcm_scenic, colnames(auc_mtx_activating_hs), group_by='sub_ccs')
+
+sanh_tfs_hs <- rownames(percent_hs)[percent_hs[,"SAN.head"] >= 25]
+sant_tfs_hs <- rownames(percent_hs)[percent_hs[,"SAN.tail"] >= 25]
+avn_tfs_hs <- rownames(percent_hs)[percent_hs[,"Compact.AVN"] >= 25]
+lnb_tfs_hs <- rownames(percent_hs)[percent_hs[,"Lower.nodal.bundle"] >= 25]
+avb_tfs_hs <- rownames(percent_hs)[percent_hs[,"His.bundle"] >= 25]
+purkinje_tfs_hs <- rownames(percent_hs)[percent_hs[,"Purkinje.fibers"] >= 25]
+
+regulons_activating_hs <- unique(c(sanh_tfs_hs, sant_tfs_hs, avn_tfs_hs, lnb_tfs_hs, avb_tfs_hs, purkinje_tfs_hs))
+
+# subset AUC matrix to only include filtered regulons
+auc_subset_activating_hs <- auc_mtx_activating_hs[,colnames(auc_mtx_activating_hs) %in% regulons_activating_hs]
+
+# generate matrix of mean regulon AUC in each region (n_regions x n_regulons)
+auc_subset_activating_hs <- auc_subset_activating_hs %>% group_by(fcm_scenic@meta.data$sub_ccs)
+mean_auc_subset_activating_hs <- auc_subset_activating_hs %>%
+  summarise(across(everything(), ~mean(.[`fcm_scenic@meta.data$sub_ccs` %in% c("SAN head", "SAN tail", "Compact AVN", "Lower nodal bundle", "His bundle", "Purkinje fibers", "aCM", "vCM")])))
+rownames(mean_auc_subset_activating_hs) <- mean_auc_subset_activating_hs$`fcm_scenic@meta.data$sub_ccs`
+mean_auc_subset_activating_hs <- mean_auc_subset_activating_hs[c("SAN head", "SAN tail", "Compact AVN", "Lower nodal bundle", "His bundle", "Purkinje fibers", "aCM", "vCM"),]
+mean_auc_subset_activating_hs$`fcm_scenic@meta.data$sub_ccs` <- NULL
+rownames(mean_auc_subset_activating_hs) <- c("SAN head", "SAN tail", "Compact AVN", "Lower nodal bundle", "His bundle", "Purkinje fibers", "aCM", "vCM")
+
+
+```
+
+# regulation of conserved genes - flow diagram
+```{r}
+
+library(ggalluvial)
+
+extract_genes <- function(genelist) {
+  genes <- unlist(strsplit(genelist, "\\), \\("))  # split by "), ("
+  genes <- gsub("[^a-zA-Z0-9,]", "", genes) # remove unwanted characters
+  gene_list <- strsplit(genes, ",")
+  
+  # extract every alternate element starting from the first
+  return(unlist(gene_list)[seq(1, length(unlist(gene_list)), by = 2)])
+}
+
+reg_act <- reg[!grepl("repressing", reg$Enrichment.5), ]
+reg_act <- reg_act[,c("X", "Enrichment.6")]
+reg_act <- reg_act[-c(1,2,3),]
+colnames(reg_act)[colnames(reg_act) == "X"] <- "tf"
+colnames(reg_act)[colnames(reg_act) == "Enrichment.6"] <- "targets"
+reg_act <- reg_act %>%
+  mutate(genelist = sapply(targets, extract_genes))
+reg_act <- reg_act %>% unnest(genelist)
+reg_act <- reg_act[reg_act$genelist %in% c(shared_san_e, shared_avn_e, shared_his_e, shared_pf_e, shared_nodes_e, shared_vcs_e),]
+reg_act <- reg_act[reg_act$tf %in% regulons_activating_hs,]
+
+library(tidyr)
+
+links <- reg_act[colnames(reg_act) %in% c('tf', 'genelist')]
+links <- links %>% unnest(genelist)
+links <- unique(links)
+
+filter_rows <- function(df, expression_data) {
+  rows_to_keep <- c()
+  
+  for (i in 1:nrow(df)) {
+    tf <- df$tf[i]
+    target_gene <- df$genelist[i]
+    
+    # get the cells where TF is expressed
+    tf_cells <- WhichCells(expression_data, expression = !!as.name(tf) > 0)
+    
+    # get the cells where target gene is expressed
+    target_cells <- WhichCells(expression_data, expression = !!as.name(target_gene) > 0)
+    
+    expressed_in_tf_cells <- length(intersect(tf_cells, target_cells)) / length(tf_cells)
+    
+    # if target gene is expressed in at least 40% of the TF cells, keep the row
+    if (!is.na(expressed_in_tf_cells) && expressed_in_tf_cells >= 0.25) {
+      rows_to_keep <- c(rows_to_keep, i)
+    }
+  }
+  
+  # subset the dataframe to keep only the rows that meet the criteria
+  filtered_df <- df[rows_to_keep, ]
+  
+  return(filtered_df)
+}
+
+links <- filter_rows(links, fccs)
+links <- links %>% filter(tf != genelist)
+links <- links %>% filter(genelist %!in% tf)
+links <- links[links$tf %in% c(hse_san, hse_avn, hse_his, hse_pf, hse_nodes, hse_vcs),]
+tfs <- links$tf
+
+assign_node_group <- function(gene) {
+  if (gene %in% links$tf) {
+    return("tf")
+  } else if (gene %in% shared_san_e) {
+    return("SAN")
+  } else if (gene %in% shared_avn_e) {
+    return("cAVN")
+  } else if (gene %in% shared_nodes_e) {
+    return("Nodes")
+  } else if (gene %in% shared_his_e) {
+    return("HIS")
+  } else if (gene %in% shared_pf_e) {
+    return("PF")
+  } else if (gene %in% shared_vcs_e) {
+    return("VCS")
+  } else {
+    return(NA)
+  }
+}
+
+links$LinkGroup <- sapply(links$genelist, assign_node_group)
+
+# order genelist
+links$LinkGroup <- factor(links$LinkGroup, levels = c("SAN", "cAVN", "Nodes", "HIS", "PF", "VCS"))
+
+# calculate connection counts and scores for tf sorting
+connection_counts <- links %>%
+  group_by(tf) %>%
+  summarise(
+    SAN = sum(LinkGroup == "SAN"),
+    cAVN = sum(LinkGroup == "cAVN"),
+    Nodes = sum(LinkGroup == "Nodes"),
+    HIS = sum(LinkGroup == "HIS"),
+    PF = sum(LinkGroup == "PF"),
+    VCS = sum(LinkGroup == "VCS"),
+    total_connections = n(),
+    .groups = 'drop'
+  ) %>%
+  mutate(
+    # calculate the total score based on weights
+    total_score = (SAN * 5 + cAVN * 4 + Nodes * 3 + HIS * 2 + PF * 1 + VCS * 0) / total_connections
+  ) %>%
+  arrange(desc(total_score))
+
+# reorder based on score
+links$tf <- factor(links$tf, levels = connection_counts$tf)
+
+genelist_levels <- links %>%
+  arrange(LinkGroup, genelist) %>%
+  distinct(genelist) %>%
+  pull(genelist)
+
+links$genelist <- factor(links$genelist, levels = genelist_levels)
+
+pal <- c(
+  "SAN" = "#861d21",
+  "cAVN" = "#f4c542",
+  "Nodes" = "#CC8836",
+  "HIS" = "#7cb8b2",
+  "PF" = "#8f7ba3",
+  "VCS" = "#859cab"
+)
+
+fig <- ggplot(links, aes(axis1 = tf, axis2 = genelist, y = 1, fill = LinkGroup)) +
+  geom_alluvium(aes(fill = LinkGroup)) +
+  geom_stratum() +
+  geom_text(stat = "stratum", aes(label = after_stat(stratum))) +
+  scale_x_discrete(limits = c("Transcription Factor", "Gene List"), expand = c(0.1, 0.1)) +
+  scale_fill_brewer(type = "qual", palette = "Set3") + 
+  theme_void() +
+  theme(
+    legend.position = "none",
+    plot.margin = unit(c(0, 0, 0, 0), "cm")
+  )
+
+ggsave("flow_embryo.svg", fig, width=4.5, height=8)
+
+```

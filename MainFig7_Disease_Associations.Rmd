@@ -1,0 +1,232 @@
+---
+title: "Disease_Associations"
+output: html_document
+date: "2025-06-11"
+---
+
+# generate circle plot
+```{r}
+
+library(circlize)
+
+# GWAS - load premade gene-disease associations binary matrix
+data <- read.csv("MHxHH_GWAS_Jun5.csv", header=T)
+data <- data[, -1] # remove first column
+data <- data[, c(1, rev(2:ncol(data)))]
+data <- data[!apply(is.na(data[, -1]), 1, all), ] # remove genes with no associations (all NA except in gene column) 
+
+MATRIX <- as.matrix(data[ ,c(2:8)])
+
+gene.names_ALL <- data.frame(Gene=data$GENE)
+rownames(MATRIX) <- data$GENE
+
+svg("gwas_circle_20250606.svg", width = 15, height = 15)
+
+par(cex = 1.35, mar = c(0, 0, 0, 0))
+
+chordDiagram(
+  t(MATRIX),
+  transparency = 0.75,
+  directional = -1,
+  annotationTrackHeight = c(0.05, 0.15),
+  link.arr.type = "big.arrow",
+  link.sort = T,
+  link.largest.ontop = F,
+  scale = F,
+  annotationTrack = "grid",
+  grid.col = c(
+    "#58595b",
+    "steelblue4",
+    "#778472",
+    "#70a288",
+    "#f4a261",
+    "#d1495b",
+    "#8f2d56",
+    "#7f5539",
+    "#cc8832",
+    "#cc8832",
+    "#cc8832",
+    "#cc8832",
+    "#deab90",
+    "#780000",
+    "#780000",
+    "#c1121f",
+    "#c1121f",
+    "#F07F89",
+    "#F07F89",
+    "#F07F89",
+    "#F07F89",
+    "#F07F89",
+    "#F6B6BB",
+    "#FBDADC",
+    "#FBDADC",
+    "#FBDADC",
+    "#FBDADC",
+    "#e36414",
+    "#ffb703",
+    "#ffb703",
+    "#ffb703",
+    "#9DC183",
+    "#9DC183",
+    "#859cab",
+    "#859cab",
+    "#859cab",
+    "#023e8a",
+    "#023e8a",
+    "#023e8a",
+    "#AFD4E9",
+    "#10002B",
+    "#10002B",
+    "#3a0ca3",
+    "#3a0ca3",
+    "#47137C",
+    "#47137C",
+    "#47137C",
+    "#7B2CBF",
+    "#7B2CBF",
+    "#7B2CBF",
+    "#7B2CBF",
+    "#AD85CE",
+    "#AD85CE",
+    "#AD85CE",
+    "#E0AAFF",
+    "#E0AAFF",
+    "#E0AAFF",
+    "#E0AAFF",
+    "#E0AAFF",
+    "#E0AAFF",
+    "#ffd6ff",
+    "#ffd6ff",
+    "#ffd6ff",
+    "#ffd6ff"
+  ),
+  preAllocateTracks = list(track.height = max(strheight(unlist(
+    dimnames(MATRIX)
+  ))))
+)
+
+
+circos.track(track.index = 1, panel.fun = function(x, y) {
+    circos.text(CELL_META$xcenter, CELL_META$ylim[1], CELL_META$sector.index, 
+                facing = "clockwise", niceFacing = TRUE, adj = c(0, 0.5), font=3)
+}, bg.border = NA)
+
+dev.off()
+
+# rare associations
+data_RARE <- read.csv("MHxHH_rare_Jun5_organized.csv", header=T)
+data_RARE <- data_RARE[, -1] # remove first column
+data_RARE <- data_RARE[, c(1, rev(2:ncol(data_RARE)))]
+data_RARE <- data_RARE[!apply(is.na(data_RARE[, -1]), 1, all), ] # remove genes with no associations (all NA except in gene column) 
+
+MATRIX_rare <- as.matrix(data_RARE[ ,c(2:7)])
+gene.names_ALL <- data.frame(Gene=data_RARE$GENE)
+rownames(MATRIX_rare) <- data_RARE$GENE
+
+svg("rare_circle_20250610.svg", width = 15, height = 15)
+
+par(cex = 1.35, mar = c(0, 0, 0, 0))
+
+chordDiagram(
+  t(MATRIX_rare),
+  transparency = 0.75,
+  directional = -1,
+  annotationTrackHeight = c(0.05, 0.15),
+  link.arr.type = "big.arrow",
+  link.sort = T,
+  link.largest.ontop = T,
+  scale = F,
+  annotationTrack = "grid",
+  grid.col = c(
+    "#58595b",
+    "steelblue4",
+    "#70a288",
+    "#f4a261",
+    "#d1495b",
+    "#8f2d56",
+    "#016d77",
+    "#7f5539",
+    "#7f5539",
+    "#cc8832",
+    "#cc8832",
+    "#cc8832",
+    "#cc8832",
+    "#EFDABD",
+    "#EFDABD",
+    "#EFDABD",
+    "#EFDABD",
+    "#EFDABD",
+    "#EFDABD",
+    "#EFDABD",
+    "#EFDABD",
+    "#EFDABD",
+    "#EFDABD",
+    "#370617",
+    "#c1121f",
+    "#F07F89",
+    "#F07F89",
+    "#F07F89",
+    "#F07F89",
+    "#F07F89",
+    "#F07F89",
+    "#F07F89",
+    "#F07F89",
+    "#F07F89",
+    "#F07F89",
+    "#F6B6BB",
+    "#FBDADC",
+    "#FBDADC",
+    "#FBDADC",
+    "#FBDADC",
+    "#FBDADC",
+    "#FBDADC",
+    "#FBDADC",
+    "#FBDADC",
+    "#FBDADC",
+    "#ffb703",
+    "#FFDC85",
+    "#9DC183",
+    "#9DC183",
+    "#9DC183",
+    "#859cab",
+    "#859cab",
+    "#859cab",
+    "#023e8a",
+    "#023e8a",
+    "#AFD4E9",
+    "#3a0ca3",
+    "#47137C",
+    "#47137C",
+    "#7B2CBF",
+    "#7B2CBF",
+    "#7B2CBF",
+    "#7B2CBF",
+    "#7B2CBF",
+    "#AD85CE",
+    "#AD85CE",
+    "#E0AAFF",
+    "#E0AAFF",
+    "#E0AAFF",
+    "#E0AAFF",
+    "#E0AAFF",
+    "#ffd6ff",
+    "#ffd6ff",
+    "#ffd6ff",
+    "#ffd6ff",
+    "#ffd6ff",
+    "#FFEBFF"
+  ),
+  preAllocateTracks = list(track.height = max(strheight(unlist(
+    dimnames(MATRIX_rare)
+  ))))
+)
+
+
+circos.track(track.index = 1, panel.fun = function(x, y) {
+  circos.text(CELL_META$xcenter, CELL_META$ylim[1], CELL_META$sector.index, 
+              facing = "clockwise", niceFacing = TRUE, adj = c(0, 0.5), font=3)
+}, bg.border = NA)
+
+dev.off()
+
+```

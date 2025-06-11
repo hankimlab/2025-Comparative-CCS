@@ -1,0 +1,867 @@
+---
+title: "Zebrafish"
+output: html_document
+date: "2025-06-11"
+---
+
+# load libraries and data
+```{r}
+
+library(Seurat)
+library(tidyverse)
+
+zcm_nahia <- readRDS('zebrafish_cm_20250401.rds')
+zccs_nahia <- readRDS('zebrafish_ccs_20250401.rds')
+
+zcm_li <- readRDS('zebrafish_cm_adult_li.rds')
+zccs_li <- readRDS('zebrafish_ccs_adult_li.rds')
+
+zfin_human <- read_tsv("https://zfin.org/downloads/human_orthos.txt", 
+                       col_names = c("ZFIN_ID", "Zebrafish_Symbol", "Zebrafish_Desc", 
+                                     "Human_Symbol", "Human_Desc", "OMIM", 
+                                     "EntrezID", "Alt_Entrez", "AA", "ZFIN_Pub"),
+                       show_col_types = FALSE)
+
+zfin_mouse <- read_tsv("https://zfin.org/downloads/mouse_orthos.txt", 
+                       col_names = c("ZFIN_ID", "Zebrafish_Symbol", "Zebrafish_Desc", 
+                                     "Mouse_Symbol", "Mouse_Desc", "OMIM", 
+                                     "EntrezID", "Alt_Entrez", "AA", "ZFIN_Pub"),
+                       show_col_types = FALSE)
+
+# create lookup tables
+dr_to_hs <- setNames(zfin_human$Human_Symbol, zfin_human$Zebrafish_Symbol)
+dr_to_mm <- setNames(zfin_mouse$Mouse_Symbol, zfin_mouse$Zebrafish_Symbol)
+
+dr_to_hs["isl1"] <- "ISL1"
+dr_to_mm["isl1"] <- "Isl1"
+
+# mouse to human lookup
+mm_to_hs <- setNames(ortholog_df$hs, ortholog_df$mm)
+
+```
+
+# embryo markers
+```{r}
+
+mark_san_dr_e <- FindMarkers(zcm_nahia, ident.1='SA node', ident.2='aCM', only.pos=T, min.pct=0.1)
+mark_san_dr_e <- mark_san_dr_e %>% filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1 >= 0.1) # for FC > 1.5
+
+mark_avn_dr_e <- FindMarkers(zcm_nahia, ident.1='Atrioventricular CMs', ident.2='vCM', only.pos=T, min.pct=0.1)
+mark_avn_dr_e <- mark_avn_dr_e %>% filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1 >= 0.1) # for FC > 1.5
+
+dr_san_vs_avn_e <- FindMarkers(zcm_nahia, ident.1='SA node', ident.2='Atrioventricular CMs', only.pos=T, min.pct=0.1)
+dr_san_vs_avn_e <- dr_san_vs_avn_e %>% filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1 >= 0.1)
+
+dr_avn_vs_san_e <- FindMarkers(zcm_nahia, ident.1='Atrioventricular CMs', ident.2='SA node', only.pos=T, min.pct=0.1)
+dr_avn_vs_san_e <- dr_avn_vs_san_e %>% filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1 >= 0.1)
+
+mark_nodes_dr_e <- FindMarkers(zcm_nahia, ident.1 = c('SA node', 'Atrioventricular CMs'), ident.2 = c('aCM', 'vCM'), only.pos = TRUE, min.pct = 0.1)
+mark_nodes_dr_e <- mark_nodes_dr_e %>%
+  filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1 >= 0.1)
+
+dr_san_e <- intersect(rownames(mark_san_dr_e), rownames(dr_san_vs_avn_e))
+dr_avn_e <- intersect(rownames(mark_avn_dr_e), rownames(dr_avn_vs_san_e))
+dr_nodes_e <- rownames(mark_nodes_dr_e)
+
+dr_nodes_e["gjd6"] <- "cx36.7" # for consistent naming
+
+dr_san_to_hs_e <- dr_to_hs[dr_san_e]
+dr_avn_to_hs_e <- dr_to_hs[dr_avn_e]
+dr_nodes_to_hs_e <- dr_to_hs[dr_nodes_e]
+
+mme_san_to_hs <- mm_to_hs[mme_san]
+mme_avn_to_hs <- mm_to_hs[mme_avn]
+mme_nodes_to_hs <- mm_to_hs[mme_nodes]
+
+shared_san_hs_dr_e <- intersect(hse_san, dr_san_to_hs_e)
+shared_avn_hs_dr_e <- intersect(hse_avn, dr_avn_to_hs_e)
+shared_nodes_hs_dr_e <- intersect(hse_nodes, dr_nodes_to_hs_e)
+
+shared_hs_san_mm_dr_e <- intersect(mme_san_to_hs, dr_san_to_hs_e)
+shared_hs_avn_mm_dr_e <- intersect(mme_avn_to_hs, dr_avn_to_hs_e)
+shared_hs_nodes_mm_dr_e <- intersect(mme_nodes_to_hs, dr_nodes_to_hs_e)
+
+shared_san_mm_dr_e <- shared_hs_san_mm_dr_e[!is.na(shared_hs_san_mm_dr_e)]
+shared_avn_mm_dr_e <- shared_hs_avn_mm_dr_e[!is.na(shared_hs_avn_mm_dr_e)]
+shared_nodes_mm_dr_e <- shared_hs_nodes_mm_dr_e[!is.na(shared_hs_nodes_mm_dr_e)]
+
+# reverse map: human --> all zebrafish genes (to handle one-to-many orthologs)
+hs_to_dr_list <- split(names(dr_to_hs), dr_to_hs)
+
+# keep only valid human orthologs (non-NA)
+valid_dr_san_hs <- dr_to_hs[dr_san_e]; valid_dr_san_hs <- valid_dr_san_hs[!is.na(valid_dr_san_hs)]
+valid_dr_avn_hs <- dr_to_hs[dr_avn_e]; valid_dr_avn_hs <- valid_dr_avn_hs[!is.na(valid_dr_avn_hs)]
+valid_dr_nodes_hs <- dr_to_hs[dr_nodes_e]; valid_dr_nodes_hs <- valid_dr_nodes_hs[!is.na(valid_dr_nodes_hs)]
+
+# zebrafish genes whose human orthologs are shared with human
+shared_san_zf_dr_e_hs <- names(valid_dr_san_hs)[valid_dr_san_hs %in% hse_san]
+shared_avn_zf_dr_e_hs <- names(valid_dr_avn_hs)[valid_dr_avn_hs %in% hse_avn]
+shared_nodes_zf_dr_e_hs <- names(valid_dr_nodes_hs)[valid_dr_nodes_hs %in% hse_nodes]
+
+# zebrafish genes whose human orthologs are shared with mouse
+shared_san_zf_dr_e_mm <- names(valid_dr_san_hs)[valid_dr_san_hs %in% mme_san_to_hs]
+shared_avn_zf_dr_e_mm <- names(valid_dr_avn_hs)[valid_dr_avn_hs %in% mme_avn_to_hs]
+shared_nodes_zf_dr_e_mm <- names(valid_dr_nodes_hs)[valid_dr_nodes_hs %in% mme_nodes_to_hs]
+
+
+```
+
+# adult markers
+```{r}
+
+mark_san_dr_a <- FindMarkers(zcm_li, ident.1='SA node', ident.2='aCM', only.pos=T, min.pct=0.1)
+mark_san_dr_a <- mark_san_dr_a %>% filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1 >= 0.1) # for FC > 1.5
+
+mark_avn_dr_a <- FindMarkers(zcm_li, ident.1='AVC', ident.2='aCM', only.pos=T, min.pct=0.1)
+mark_avn_dr_a <- mark_avn_dr_a %>% filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1 >= 0.1) # for FC > 1.5
+
+dr_san_vs_avn_a <- FindMarkers(zcm_li, ident.1='SA node', ident.2='AVC', only.pos=T, min.pct=0.1)
+dr_san_vs_avn_a <- dr_san_vs_avn_a %>% filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1 >= 0.1)
+
+dr_avn_vs_san_a <- FindMarkers(zcm_li, ident.1='AVC', ident.2='SA node', only.pos=T, min.pct=0.1)
+dr_avn_vs_san_a <- dr_avn_vs_san_a %>% filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1 >= 0.1)
+
+mark_nodes_dr_a <- FindMarkers(zcm_li, ident.1 = c('SA node', 'AVC'), ident.2 = 'aCM', only.pos = TRUE, min.pct = 0.1)
+mark_nodes_dr_a <- mark_nodes_dr_a %>%
+  filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1 >= 0.1)
+
+dr_san_a <- intersect(rownames(mark_san_dr_a), rownames(dr_san_vs_avn_a))
+dr_avn_a <- intersect(rownames(mark_avn_dr_a), rownames(dr_avn_vs_san_a))
+dr_nodes_a <- rownames(mark_nodes_dr_a)
+
+dr_san_to_hs_a <- dr_to_hs[dr_san_a]
+dr_avn_to_hs_a <- dr_to_hs[dr_avn_a]
+dr_nodes_to_hs_a <- dr_to_hs[dr_nodes_a]
+
+mmp_san_to_hs <- mm_to_hs[mmp_san]
+mmp_avn_to_hs <- mm_to_hs[mmp_avn]
+mmp_nodes_to_hs <- mm_to_hs[mmp_nodes]
+
+shared_san_hs_dr_a <- intersect(hsa_san, dr_san_to_hs_a)
+shared_avn_hs_dr_a <- intersect(hsa_avn, dr_avn_to_hs_a)
+shared_nodes_hs_dr_a <- intersect(hsa_nodes, dr_nodes_to_hs_a)
+
+shared_hs_san_mm_dr_a <- intersect(mmp_san_to_hs, dr_san_to_hs_a)
+shared_hs_avn_mm_dr_a <- intersect(mmp_avn_to_hs, dr_avn_to_hs_a)
+shared_hs_nodes_mm_dr_a <- intersect(mmp_nodes_to_hs, dr_nodes_to_hs_a)
+
+shared_san_mm_dr_a <- shared_hs_san_mm_dr_a[!is.na(shared_hs_san_mm_dr_a)]
+shared_avn_mm_dr_a <- shared_hs_avn_mm_dr_a[!is.na(shared_hs_avn_mm_dr_a)]
+shared_nodes_mm_dr_a <- shared_hs_nodes_mm_dr_a[!is.na(shared_hs_nodes_mm_dr_a)]
+
+# reverse map (to handle one-to-many orthologs)
+hs_to_dr_list <- split(names(dr_to_hs), dr_to_hs)
+
+# keep only valid human orthologs (non-NA)
+valid_dr_san_hs <- dr_to_hs[dr_san_a]; valid_dr_san_hs <- valid_dr_san_hs[!is.na(valid_dr_san_hs)]
+valid_dr_avn_hs <- dr_to_hs[dr_avn_a]; valid_dr_avn_hs <- valid_dr_avn_hs[!is.na(valid_dr_avn_hs)]
+valid_dr_nodes_hs <- dr_to_hs[dr_nodes_a]; valid_dr_nodes_hs <- valid_dr_nodes_hs[!is.na(valid_dr_nodes_hs)]
+
+shared_san_zf_dr_a_hs <- names(valid_dr_san_hs)[valid_dr_san_hs %in% hsa_san]
+shared_avn_zf_dr_a_hs <- names(valid_dr_avn_hs)[valid_dr_avn_hs %in% hsa_avn]
+shared_nodes_zf_dr_a_hs <- names(valid_dr_nodes_hs)[valid_dr_nodes_hs %in% hsa_nodes]
+
+shared_san_zf_dr_a_mm <- names(valid_dr_san_hs)[valid_dr_san_hs %in% mmp_san_to_hs]
+shared_avn_zf_dr_a_mm <- names(valid_dr_avn_hs)[valid_dr_avn_hs %in% mmp_avn_to_hs]
+shared_nodes_zf_dr_a_mm <- names(valid_dr_nodes_hs)[valid_dr_nodes_hs %in% mmp_nodes_to_hs]
+
+```
+
+# shared between zebrafish stages
+```{r}
+
+shared_san_dr <- intersect(dr_san_e, dr_san_a)
+shared_san_dr_only <- setdiff(shared_san_dr, c(shared_san_zf_dr_e_mm, shared_san_zf_dr_e_hs, shared_san_zf_dr_a_mm, shared_san_zf_dr_a_hs))
+
+shared_avn_dr <- intersect(dr_avn_e, dr_avn_a)
+shared_avn_dr_only <- setdiff(shared_avn_dr, c(shared_avn_zf_dr_e_mm, shared_avn_zf_dr_e_hs, shared_avn_zf_dr_a_mm, shared_avn_zf_dr_a_hs))
+
+shared_nodes_dr <- intersect(dr_nodes_e, dr_nodes_a)
+shared_nodes_dr_only <- setdiff(shared_nodes_dr, c(shared_nodes_zf_dr_e_mm, shared_nodes_zf_dr_e_hs, shared_nodes_zf_dr_a_mm, shared_nodes_zf_dr_a_hs))
+
+```
+
+# zebrafish embryo specific
+```{r}
+
+library(scCustomize)
+
+# SAN 
+
+# % expression of embryo SAN markers in all other datasets
+percent_zf_a_san <- Percent_Expressing(zcm_li, dr_san_e, group_by = "sub_ccs")
+percent_mm_e_san <- Percent_Expressing(gccs, ortholog_df_zf$mm[ortholog_df_zf$dr %in% dr_san_e], group_by = "sub_ccs")
+percent_hs_e_san <- Percent_Expressing(fccs, ortholog_df_zf$hs[ortholog_df_zf$dr %in% dr_san_e], group_by = "sub_ccs")
+
+hs_low_expr <- rownames(percent_hs_e_san[percent_hs_e_san$SAN.tail < 5 & percent_hs_e_san$SAN.head < 5, ])
+mm_low_expr <- rownames(percent_mm_e_san[percent_mm_e_san$SAN.head < 5 & percent_mm_e_san$SAN.tail < 5, ])
+zf_a_low_expr <- rownames(percent_zf_a_san[percent_zf_a_san$SA.node < 5, ])
+
+# map human/mouse low expr genes to zebrafish genes
+hs_low_expr_dr <- ortholog_df_zf$dr[ortholog_df_zf$hs %in% hs_low_expr]
+mm_low_expr_dr <- ortholog_df_zf$dr[ortholog_df_zf$mm %in% mm_low_expr]
+
+# filter to SAN list
+hs_low_expr_dr <- intersect(hs_low_expr_dr, dr_san_e)
+mm_low_expr_dr <- intersect(mm_low_expr_dr, dr_san_e)
+zf_a_low_expr <- intersect(zf_a_low_expr, dr_san_e)
+
+# genes missing in all other datasets
+dr_san_e_not_in_other <- dr_san_e[
+  !(dr_san_e %in% ortholog_df_zf$dr[ortholog_df_zf$hs %in% rownames(fccs)]) &
+  !(dr_san_e %in% ortholog_df_zf$dr[ortholog_df_zf$mm %in% rownames(gccs)]) &
+  !(dr_san_e %in% rownames(zcm_li))
+]
+
+# final zebrafish embryo-specific SAN list
+zf_san_specific_e <- union(
+  intersect(dr_san_e, intersect(hs_low_expr_dr, intersect(mm_low_expr_dr, zf_a_low_expr))),
+  dr_san_e_not_in_other
+)
+
+# AVN/AVC
+
+percent_zf_a_avn <- Percent_Expressing(zcm_li, dr_avn_e, group_by = "sub_ccs")
+percent_mm_e_avn <- Percent_Expressing(gccs, ortholog_df_zf$mm[ortholog_df_zf$dr %in% dr_avn_e], group_by = "sub_ccs")
+percent_hs_e_avn <- Percent_Expressing(fccs, ortholog_df_zf$hs[ortholog_df_zf$dr %in% dr_avn_e], group_by = "sub_ccs")
+
+hs_low_expr_avn <- rownames(percent_hs_e_avn[percent_hs_e_avn$Compact.AVN < 5, ])
+mm_low_expr_avn <- rownames(percent_mm_e_avn[percent_mm_e_avn$Compact.AVN < 5, ])
+zf_a_low_expr_avn <- rownames(percent_zf_a_avn[percent_zf_a_avn$AV.node < 5, ])
+
+hs_low_expr_dr_avn <- intersect(ortholog_df_zf$dr[ortholog_df_zf$hs %in% hs_low_expr_avn], dr_avn_e)
+mm_low_expr_dr_avn <- intersect(ortholog_df_zf$dr[ortholog_df_zf$mm %in% mm_low_expr_avn], dr_avn_e)
+zf_a_low_expr_avn <- intersect(zf_a_low_expr_avn, dr_avn_e)
+
+dr_avn_e_not_in_other <- dr_avn_e[
+  !(dr_avn_e %in% ortholog_df_zf$dr[ortholog_df_zf$hs %in% rownames(fccs)]) &
+  !(dr_avn_e %in% ortholog_df_zf$dr[ortholog_df_zf$mm %in% rownames(gccs)]) &
+  !(dr_avn_e %in% rownames(zcm_li))
+]
+
+zf_avn_specific_e <- union(
+  intersect(dr_avn_e, intersect(hs_low_expr_dr_avn, intersect(mm_low_expr_dr_avn, zf_a_low_expr_avn))),
+  dr_avn_e_not_in_other
+)
+
+# Nodes (SAN + AVN/AVC)
+
+percent_zf_a_nodes <- Percent_Expressing(zcm_li, dr_nodes_e, group_by = "sub_ccs")
+percent_mm_e_nodes <- Percent_Expressing(gccs, ortholog_df_zf$mm[ortholog_df_zf$dr %in% dr_nodes_e], group_by = "sub_ccs")
+percent_hs_e_nodes <- Percent_Expressing(fccs, ortholog_df_zf$hs[ortholog_df_zf$dr %in% dr_nodes_e], group_by = "sub_ccs")
+
+hs_low_expr_nodes <- rownames(percent_hs_e_nodes[
+  percent_hs_e_nodes$SAN.tail < 5 &
+  percent_hs_e_nodes$SAN.head < 5 &
+  percent_hs_e_nodes$Compact.AVN < 5, ])
+
+mm_low_expr_nodes <- rownames(percent_mm_e_nodes[
+  percent_mm_e_nodes$SAN.head < 5 &
+  percent_mm_e_nodes$SAN.tail < 5 &
+  percent_mm_e_nodes$Compact.AVN < 5, ])
+
+zf_a_low_expr_nodes <- rownames(percent_zf_a_nodes[
+  percent_zf_a_nodes$SA.node < 5 &
+  percent_zf_a_nodes$AV.node < 5, ])
+
+hs_low_expr_dr_nodes <- intersect(ortholog_df_zf$dr[ortholog_df_zf$hs %in% hs_low_expr_nodes], dr_nodes_e)
+mm_low_expr_dr_nodes <- intersect(ortholog_df_zf$dr[ortholog_df_zf$mm %in% mm_low_expr_nodes], dr_nodes_e)
+zf_a_low_expr_nodes <- intersect(zf_a_low_expr_nodes, dr_nodes_e)
+
+dr_nodes_e_not_in_other <- dr_nodes_e[
+  !(dr_nodes_e %in% ortholog_df_zf$dr[ortholog_df_zf$hs %in% rownames(fccs)]) &
+  !(dr_nodes_e %in% ortholog_df_zf$dr[ortholog_df_zf$mm %in% rownames(gccs)]) &
+  !(dr_nodes_e %in% rownames(zcm_li))
+]
+
+zf_nodes_specific_e <- union(
+  intersect(dr_nodes_e, intersect(hs_low_expr_dr_nodes, intersect(mm_low_expr_dr_nodes, zf_a_low_expr_nodes))),
+  dr_nodes_e_not_in_other
+)
+
+```
+
+# zebrafish adult specific
+```{r}
+library(scCustomize)
+
+percent_zf_e_san <- Percent_Expressing(zcm_nahia, dr_san_a, group_by = "sub_ccs")
+percent_mm_a_san <- Percent_Expressing(occs, ortholog_df_zf$mm[ortholog_df_zf$dr %in% dr_san_a], group_by = "sub_ccs")
+percent_hs_a_san <- Percent_Expressing(kccs, ortholog_df_zf$hs[ortholog_df_zf$dr %in% dr_san_a], group_by = "sub_ccs")
+
+hs_low_expr_san <- rownames(percent_hs_a_san[percent_hs_a_san$SA.node < 5, ])
+mm_low_expr_san <- rownames(percent_mm_a_san[percent_mm_a_san$SA.node < 5, ])
+zf_e_low_expr_san <- rownames(percent_zf_e_san[percent_zf_e_san$SA.node < 5, ])
+
+hs_low_expr_dr_san <- ortholog_df_zf$dr[ortholog_df_zf$hs %in% hs_low_expr_san]
+mm_low_expr_dr_san <- ortholog_df_zf$dr[ortholog_df_zf$mm %in% mm_low_expr_san]
+
+hs_low_expr_dr_san <- intersect(hs_low_expr_dr_san, dr_san_a)
+mm_low_expr_dr_san <- intersect(mm_low_expr_dr_san, dr_san_a)
+zf_e_low_expr_san <- intersect(zf_e_low_expr_san, dr_san_a)
+
+dr_san_a_not_in_other <- dr_san_a[
+  !(dr_san_a %in% ortholog_df_zf$dr[ortholog_df_zf$hs %in% rownames(kccs)]) &
+  !(dr_san_a %in% ortholog_df_zf$dr[ortholog_df_zf$mm %in% rownames(occs)]) &
+  !(dr_san_a %in% rownames(zcm_nahia))
+]
+
+zf_san_specific_a <- union(
+  intersect(dr_san_a, intersect(hs_low_expr_dr_san, intersect(mm_low_expr_dr_san, zf_e_low_expr_san))),
+  dr_san_a_not_in_other
+)
+
+# AVN/AVC
+
+percent_zf_e_avn <- Percent_Expressing(zcm_nahia, dr_avn_a, group_by = "sub_ccs")
+percent_mm_a_avn <- Percent_Expressing(occs, ortholog_df_zf$mm[ortholog_df_zf$dr %in% dr_avn_a], group_by = "sub_ccs")
+percent_hs_a_avn <- Percent_Expressing(kccs, ortholog_df_zf$hs[ortholog_df_zf$dr %in% dr_avn_a], group_by = "sub_ccs")
+
+hs_low_expr_avn <- rownames(percent_hs_a_avn[percent_hs_a_avn$Compact.AV.node < 5, ])
+mm_low_expr_avn <- rownames(percent_mm_a_avn[percent_mm_a_avn$Compact.AV.node < 5, ])
+zf_e_low_expr_avn <- rownames(percent_zf_e_avn[percent_zf_e_avn$Atrioventricular.CMs < 5, ])
+
+hs_low_expr_dr_avn <- intersect(ortholog_df_zf$dr[ortholog_df_zf$hs %in% hs_low_expr_avn], dr_avn_a)
+mm_low_expr_dr_avn <- intersect(ortholog_df_zf$dr[ortholog_df_zf$mm %in% mm_low_expr_avn], dr_avn_a)
+zf_e_low_expr_avn <- intersect(zf_e_low_expr_avn, dr_avn_a)
+
+dr_avn_a_not_in_other <- dr_avn_a[
+  !(dr_avn_a %in% ortholog_df_zf$dr[ortholog_df_zf$hs %in% rownames(kccs)]) &
+  !(dr_avn_a %in% ortholog_df_zf$dr[ortholog_df_zf$mm %in% rownames(occs)]) &
+  !(dr_avn_a %in% rownames(zcm_nahia))
+]
+
+zf_avn_specific_a <- union(
+  intersect(dr_avn_a, intersect(hs_low_expr_dr_avn, intersect(mm_low_expr_dr_avn, zf_e_low_expr_avn))),
+  dr_avn_a_not_in_other
+)
+
+# Nodes (SAN + AVN/AVC)
+
+percent_zf_e_nodes <- Percent_Expressing(zcm_nahia, dr_nodes_a, group_by = "sub_ccs")
+percent_mm_a_nodes <- Percent_Expressing(occs, ortholog_df_zf$mm[ortholog_df_zf$dr %in% dr_nodes_a], group_by = "sub_ccs")
+percent_hs_a_nodes <- Percent_Expressing(kccs, ortholog_df_zf$hs[ortholog_df_zf$dr %in% dr_nodes_a], group_by = "sub_ccs")
+
+hs_low_expr_nodes <- rownames(percent_hs_a_nodes[
+  percent_hs_a_nodes$SA.node < 5 &
+  percent_hs_a_nodes$Compact.AV.node < 5, ])
+
+mm_low_expr_nodes <- rownames(percent_mm_a_nodes[
+  percent_mm_a_nodes$SA.node < 5 &
+  percent_mm_a_nodes$Compact.AV.node < 5, ])
+
+zf_e_low_expr_nodes <- rownames(percent_zf_e_nodes[
+  percent_zf_e_nodes$SA.node < 5 &
+  percent_zf_e_nodes$Atrioventricular.CMs < 5, ])
+
+hs_low_expr_dr_nodes <- intersect(ortholog_df_zf$dr[ortholog_df_zf$hs %in% hs_low_expr_nodes], dr_nodes_a)
+mm_low_expr_dr_nodes <- intersect(ortholog_df_zf$dr[ortholog_df_zf$mm %in% mm_low_expr_nodes], dr_nodes_a)
+zf_e_low_expr_nodes <- intersect(zf_e_low_expr_nodes, dr_nodes_a)
+
+dr_nodes_a_not_in_other <- dr_nodes_a[
+  !(dr_nodes_a %in% ortholog_df_zf$dr[ortholog_df_zf$hs %in% rownames(kccs)]) &
+  !(dr_nodes_a %in% ortholog_df_zf$dr[ortholog_df_zf$mm %in% rownames(occs)]) &
+  !(dr_nodes_a %in% rownames(zcm_nahia))
+]
+
+zf_nodes_specific_a <- union(
+  intersect(dr_nodes_a, intersect(hs_low_expr_dr_nodes, intersect(mm_low_expr_dr_nodes, zf_e_low_expr_nodes))),
+  dr_nodes_a_not_in_other
+)
+
+```
+
+
+```{r}
+
+library(tidyverse)
+library(ComplexUpset)
+
+clean_vec <- function(x) sort(unique(x[!is.na(x)]))
+
+# helper function to return all paralogs orthologous to a gene list
+get_dr_marker_paralogs <- function(hgene, dr_pool_emb, dr_pool_ad){
+    cands <- hs_to_dr_list[[hgene]] %||% character(0)
+    intersect(cands, union(dr_pool_emb, dr_pool_ad))
+}
+
+# build all shared gene lists
+build_shared_lists <- function(dr_emb, dr_ad,
+                               dr_to_hs, mm_to_hs,
+                               hs_emb, hs_ad,
+                               mm_emb, mm_ad){
+    
+    dr_emb_to_hs <- dr_to_hs[dr_emb]
+    dr_ad_to_hs  <- dr_to_hs[dr_ad]
+    
+    shared_hs_dr_emb <- intersect(hs_emb, dr_emb_to_hs)
+    shared_hs_dr_ad  <- intersect(hs_ad,  dr_ad_to_hs)
+    
+    shared_mm_dr_emb <- intersect(mm_emb, dr_emb_to_hs) |> discard(is.na)
+    shared_mm_dr_ad  <- intersect(mm_ad,  dr_ad_to_hs)  |> discard(is.na)
+    
+    valid_dr_emb_hs <- discard(dr_emb_to_hs, is.na)
+    valid_dr_ad_hs  <- discard(dr_ad_to_hs,  is.na)
+    
+    shared_zf_dr_emb_hs <- names(valid_dr_emb_hs)[valid_dr_emb_hs %in% hs_emb]
+    shared_zf_dr_ad_hs  <- names(valid_dr_ad_hs) [valid_dr_ad_hs  %in% hs_ad]
+    shared_zf_dr_emb_mm <- names(valid_dr_emb_hs)[valid_dr_emb_hs %in% mm_emb]
+    shared_zf_dr_ad_mm  <- names(valid_dr_ad_hs) [valid_dr_ad_hs  %in% mm_ad]
+    
+    shared_dr_only <- intersect(dr_emb, dr_ad)
+    
+    whitelist_zf <- unique(c(shared_zf_dr_emb_hs, shared_zf_dr_ad_hs,
+                             shared_zf_dr_emb_mm, shared_zf_dr_ad_mm,
+                             shared_dr_only))
+    
+    list(
+        whitelist_zf = whitelist_zf
+    )
+}
+
+# region-specific shared lists
+san_shared <- build_shared_lists(dr_san_e,   dr_san_a,
+                                   dr_to_hs, mm_to_hs,
+                                   hse_san,  hsa_san,
+                                   mme_san_to_hs, mmp_san_to_hs)
+
+avn_shared <- build_shared_lists(dr_avn_e,   dr_avn_a,
+                                   dr_to_hs, mm_to_hs,
+                                   hse_avn,  hsa_avn,
+                                   mme_avn_to_hs, mmp_avn_to_hs)
+
+nodes_shared <- build_shared_lists(dr_nodes_e, dr_nodes_a,
+                                   dr_to_hs, mm_to_hs,
+                                   hse_nodes, hsa_nodes,
+                                   mme_nodes_to_hs, mmp_nodes_to_hs)
+
+# helper function to build tablesk eyed by zebrafish genes
+
+build_table_zf_key <- function(dr_emb, dr_ad, # zebrafish gene lists
+                               mm_emb_to_hs, mm_ad_to_hs, # human ortholog lists
+                               hs_emb, hs_ad,
+                               whitelist_zf,
+                               dr_to_hs){
+
+  # all zebrafish genes seen in embryo or adult
+  zf_genes <- union(dr_emb, dr_ad)
+
+  tbl <- tibble(Gene = zf_genes) %>%
+    mutate(
+      human_ortholog = dr_to_hs[Gene] %||% NA_character_,
+
+      # presence flags (zebrafish in native gene space, others via ortholog)
+      ZF_embryo       = as.integer(Gene %in% dr_emb),
+      ZF_adult        = as.integer(Gene %in% dr_ad),
+      Mouse_embryo    = as.integer(!is.na(human_ortholog) &
+                                   human_ortholog %in% mm_emb_to_hs),
+      Mouse_postnatal = as.integer(!is.na(human_ortholog) &
+                                   human_ortholog %in% mm_ad_to_hs),
+      Human_fetus     = as.integer(!is.na(human_ortholog) &
+                                   human_ortholog %in% hs_emb),
+      Human_adult     = as.integer(!is.na(human_ortholog) &
+                                   human_ortholog %in% hs_ad)
+    ) %>%
+
+    # counts & stage summary
+    mutate(
+      n_sets       = ZF_embryo + ZF_adult +
+                     Mouse_embryo + Mouse_postnatal +
+                     Human_fetus  + Human_adult,
+      sets_present = pmap_chr(across(ZF_embryo:Human_adult),
+                              ~ paste(names(cur_data())[c(...) == 1],
+                                      collapse = ";"))
+    ) %>%
+
+    ## filters
+    filter(
+      # keep if 2 or more of the 6 datasets or in both zebrafish
+      n_sets >= 2 | (ZF_embryo == 1 & ZF_adult == 1)
+    ) %>%
+    filter(Gene %in% whitelist_zf) # region-specific relevance
+}
+
+# SAN/AVN/nodes tables
+
+san_tbl   <- build_table_zf_key(
+  dr_san_e, dr_san_a,
+  mme_san_to_hs, mmp_san_to_hs,
+  hse_san, hsa_san,
+  san_shared$whitelist_zf,
+  dr_to_hs
+)
+
+avn_tbl   <- build_table_zf_key(
+  dr_avn_e, dr_avn_a,
+  mme_avn_to_hs, mmp_avn_to_hs,
+  hse_avn, hsa_avn,
+  avn_shared$whitelist_zf,
+  dr_to_hs
+)
+
+nodes_tbl <- build_table_zf_key(
+  dr_nodes_e, dr_nodes_a,
+  mme_nodes_to_hs, mmp_nodes_to_hs,
+  hse_nodes, hsa_nodes,
+  nodes_shared$whitelist_zf,
+  dr_to_hs
+)
+
+patterns <- list(
+  all6          = c("ZF_embryo","ZF_adult","Mouse_embryo",
+                    "Mouse_postnatal","Human_fetus","Human_adult"),
+  zemb_zad_memb_mpost = c("ZF_embryo","ZF_adult","Mouse_embryo","Mouse_postnatal"),
+  zemb_zad_hemb_hpost = c("ZF_embryo","ZF_adult","Human_fetus","Human_adult"),
+  zemb_memb_hemb      = c("ZF_embryo","Mouse_embryo","Human_fetus"),
+  zad_mpost_hpost     = c("ZF_adult","Mouse_postnatal","Human_adult"),
+  zemb_memb           = c("ZF_embryo","Mouse_embryo"),
+  zemb_hemb           = c("ZF_embryo","Human_fetus"),
+  zad_mpost           = c("ZF_adult","Mouse_postnatal"),
+  zad_hpost           = c("ZF_adult","Human_adult")
+)
+
+## helper: keep rows that are 1 in all “yes” column
+keep_at_least <- function(tbl, yes_cols){
+  tbl %>%
+    filter(if_all(all_of(yes_cols), ~ .x == 1))
+}
+
+## dictionary of filtered tables for each region
+filter_region <- function(tbl){
+  imap(patterns, ~ keep_at_least(tbl, .x))
+}
+
+# re-run for each region
+san_sets   <- filter_region(san_tbl)
+avn_sets   <- filter_region(avn_tbl)
+nodes_sets <- filter_region(nodes_tbl)
+
+
+```
+
+# zebrafish and medaka trabeculae vs mouse/human PF
+```{r}
+
+# from Carey et al., Biol. Open
+
+mc <- readRDS('/Users/marwanbakr/docs/kimlab/scRNA-seq/zebrafish_medaka_heart/myocardium.rds')
+
+
+# zebrafish: uninjured, trabecular vs cortical
+zf_uninjured <- subset(mc, subset = group == "zebrafish_uninjured")
+Idents(zf_uninjured) <- zf_uninjured$cell_class
+zf_trbc <- FindMarkers(zf_uninjured, ident.1 = "Trabecular", ident.2 = "Cortical", only.pos=T, min.pct=0.1, assay = "RNA")
+zf_trbc <-  zf_trbc %>% filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1 >= 0.1)
+zf_trbc <- rownames(zf_trbc)
+
+zf_cort <- FindMarkers(zf_uninjured, ident.1 = "Cortical", ident.2 = "Trabecular", only.pos=T, min.pct=0.1, assay="RNA")
+zf_cort <-  zf_cort %>% filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1 >= 0.1)
+zf_cort <- rownames(zf_cort)
+
+
+# medaka: uninjured, trabecular vs cortical
+mdk_uninjured <- subset(mc, subset = group == "medaka_uninjured")
+Idents(mdk_uninjured) <- "cell_class"
+mdk_trbc <- FindMarkers(mdk_uninjured, ident.1 = "Trabecular", ident.2 = "Cortical", only.pos=T, min.pct=0.1, assay="RNA")
+mdk_trbc <-  mdk_trbc %>% filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1 >= 0.1)
+mdk_trbc <- rownames(mdk_trbc)
+
+mdk_cort <- FindMarkers(mdk_uninjured, ident.1 = "Cortical", ident.2 = "Trabecular", only.pos=T, min.pct=0.1, assay="RNA")
+mdk_cort <-  mdk_cort %>% filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1 >= 0.1)
+mdk_cort <- rownames(mdk_cort)
+
+dr_to_hs <- c(dr_to_hs, scn5laa = "SCN5A", scn5lab = "SCN5A") # not in list, added manually
+
+zf_trbc_to_hs <- dr_to_hs[zf_trbc]
+zf_trbc_to_hs <- zf_trbc_to_hs[!is.na(zf_trbc_to_hs)]
+mdk_trbc_to_hs <- dr_to_hs[mdk_trbc]
+mdk_trbc_to_hs <- mdk_trbc_to_hs[!is.na(mdk_trbc_to_hs)]
+
+library(ComplexUpset)
+library(tidyverse)
+library(scales)
+
+zf_gene_lists <- list(
+  zf_trbc = zf_trbc_to_hs,        # zebrafish trabeculae --> human orthologs
+  hse_pf  = hse_pf,               # human fetal PF
+  hsa_pf  = hsa_pf,               # human adult PF
+  mme_pf  = mm_to_hs_pf_e$hs,     # mouse embryonic PF --> human orthologs
+  mmp_pf  = mm_to_hs_pf_a$hs      # mouse postnatal  PF --> human orthologs
+)
+
+all_genes_zf <- unique(unlist(zf_gene_lists))
+gene_df_zf   <- as.data.frame(sapply(zf_gene_lists, `%in%`, x = all_genes_zf))
+gene_df_zf$gene <- all_genes_zf
+
+# keep only genes present in zebrafish trabeculae
+zf_df_filtered <- gene_df_zf %>% filter(zf_trbc)
+
+fig <- upset(
+  zf_df_filtered,
+  intersect = rev(names(zf_gene_lists)),
+  sort_sets = F,
+  min_degree = 2,
+  base_annotations = list(
+    'Intersection size' =
+      intersection_size(counts = FALSE) +
+      scale_y_continuous(breaks = breaks_width(5)) +
+      theme(panel.grid = element_blank())
+  ),
+  set_sizes = F,
+  matrix = intersection_matrix(geom  = geom_point(size = 4)),
+  height_ratio=2,
+  stripes='white',
+  sort_intersections_by = 'degree'
+) +
+  theme(axis.title.x = element_blank(), panel.grid = element_blank())
+
+ggsave('zebrafish_trbc_mammal_vcs_upset.svg', fig, dpi=600, width=7, height=5)
+
+
+# medaka gene lists
+
+mdk_gene_lists <- list(
+  mdk_trbc = mdk_trbc_to_hs,
+  hse_pf  = hse_pf,
+  hsa_pf  = hsa_pf,
+  mme_pf  = mm_to_hs_pf_e$hs,
+  mmp_pf  = mm_to_hs_pf_a$hs
+)
+
+all_genes_mdk <- unique(unlist(mdk_gene_lists))
+gene_df_mdk   <- as.data.frame(sapply(mdk_gene_lists, `%in%`, x = all_genes_mdk))
+gene_df_mdk$gene <- all_genes_mdk
+
+# keep only genes present in medaka trabeculae
+mdk_df_filtered <- gene_df_mdk %>% filter(mdk_trbc)
+
+fig <- upset(
+  mdk_df_filtered,
+  intersect = rev(names(mdk_gene_lists)),
+  sort_sets = F,
+  width_ratio = 0.25,
+  set_sizes = FALSE,
+  min_degree= 2,
+  base_annotations = list(
+    'Intersection size' =
+      intersection_size(counts = FALSE) +
+      scale_y_continuous(breaks = breaks_width(5)) +
+      theme(panel.grid = element_blank())
+  ),
+  matrix = intersection_matrix(geom  = geom_point(size = 4)),
+  height_ratio=2,
+  stripes='white'
+) +
+  theme(axis.title.x = element_blank(), panel.grid = element_blank())
+
+ggsave('medaka_trbc_mammal_vcs_upset.svg', fig, dpi=600, width=7, height=5)
+
+# generate lists of genes for each intersection combination (for reference)
+
+library(dplyr)
+library(tidyr)
+library(stringr)
+
+sets_mat <- zf_df_filtered %>%
+  select(zf_trbc, hse_pf, hsa_pf, mme_pf, mmp_pf, gene)   # order matches plot
+
+# derive a “combination label” for every gene row
+combos_tbl <- sets_mat %>%
+  rowwise() %>%
+  mutate(combo = paste(names(.)[c_across(zf_trbc:mmp_pf)], collapse = " & ")) %>%
+  ungroup()
+
+# keep only combos that involve 2 or more sets  (same criterion as the upset plot)
+combos_tbl <- combos_tbl %>%
+  filter(str_count(combo, "&") + 1 >= 2)
+
+# build human --> (all zf paralogs) mapping, filtering to only those in zf_trbc
+hs_to_zf_multi <- split(names(zf_trbc_to_hs), zf_trbc_to_hs)
+
+# filter paralogs to just those present in zf_trbc
+hs_to_zf_filtered <- lapply(hs_to_zf_multi, function(paralogs) {
+  intersect(paralogs, zf_trbc)
+})
+
+zf_order <- factor(zf_trbc, levels = zf_trbc)
+
+genes_per_combo_zf <- combos_tbl %>%
+  rowwise() %>%
+  mutate(
+    zf_paralogs = list(hs_to_zf_filtered[[gene]] %||% character(0))
+  ) %>%
+  ungroup() %>%
+  group_by(combo) %>%
+  summarise(
+    n_genes = n(),
+    genes = zf_paralogs %>%
+      flatten_chr() %>%
+      unique() %>%
+      { .[order(match(., zf_order))] } %>%
+      paste(collapse = ", ")
+  ) %>%
+  arrange(desc(n_genes))
+
+genes_per_combo_zf <- genes_per_combo_zf %>%
+  filter(combo != "zf_trbc & gene")
+
+# same as above, but for medaka
+
+sets_mat <- mdk_df_filtered %>%
+  select(mdk_trbc, hse_pf, hsa_pf, mme_pf, mmp_pf, gene) # order matches plot
+
+combos_tbl <- sets_mat %>%
+  rowwise() %>%
+  mutate(combo = paste(names(.)[c_across(mdk_trbc:mmp_pf)], collapse = " & ")) %>%
+  ungroup()
+
+combos_tbl <- combos_tbl %>%
+  filter(str_count(combo, "&") + 1 >= 2)
+
+hs_to_mdk_multi <- split(names(mdk_trbc_to_hs), mdk_trbc_to_hs)
+
+hs_to_mdk_filtered <- lapply(hs_to_mdk_multi, function(paralogs) {
+  intersect(paralogs, mdk_trbc)
+})
+
+mdk_order <- factor(mdk_trbc, levels = mdk_trbc)
+
+genes_per_combo_mdk <- combos_tbl %>%
+  rowwise() %>%
+  mutate(
+    mdk_paralogs = list(hs_to_mdk_filtered[[gene]] %||% character(0))
+  ) %>%
+  ungroup() %>%
+  group_by(combo) %>%
+  summarise(
+    n_genes = n(),
+    genes = mdk_paralogs %>%
+      flatten_chr() %>%
+      unique() %>%
+      { .[order(match(., mdk_order))] } %>%
+      paste(collapse = ", ")
+  ) %>%
+  arrange(desc(n_genes))
+
+genes_per_combo_mdk <- genes_per_combo_mdk %>%
+  filter(combo != "mdk_trbc & gene")
+
+
+```
+
+# plot heatmaps - SAN/AVC and trabeculae datasets
+```{r}
+
+avg_zcm_nahia_expr_full <- AverageExpression(
+  zcm_nahia,
+  assays = "RNA",
+  slot = "data",
+  features = NULL,
+  group.by = "sub_ccs"
+)$RNA
+
+heat_data_e <- avg_zcm_nahia_expr_full[rownames(avg_zcm_nahia_expr_full) %in% c(dr_nodes_e, dr_san_e, dr_avn_e), ]
+
+heat_data_e <- t(scale(t(heat_data_e)))
+heat_data_e <- heat_data_e[c(dr_nodes_e, dr_san_e, dr_avn_e), ]
+colnames(heat_data_e)[colnames(heat_data_e) == "Atrioventricular CMs"] <- "AVC"
+
+
+library(pheatmap)
+
+fig <- pheatmap(
+  heat_data_e,
+  cluster_rows = F,
+  cluster_cols = F,
+  color = colorRampPalette(c('#f7fbff', '#9ecae1', '#084594'))(1000),
+  border_color = NA,
+  show_rownames = F,
+  fontsize_col = 14,
+  angle_col=0,
+  legend = F
+)
+
+ggsave('heatmap_zf_embryo.tiff', fig, width=3, height=12.5, dpi=600)
+
+avg_zcm_li_expr_full <- AverageExpression(
+  zcm_li,
+  assays = "RNA",
+  slot = "data",
+  features = NULL,
+  group.by = "sub_ccs"
+)$RNA
+
+heat_data_a <- avg_zcm_li_expr_full[rownames(avg_zcm_li_expr_full) %in% c(dr_nodes_a, dr_san_a, dr_avn_a), ]
+
+heat_data_a <- t(scale(t(heat_data_a)))
+heat_data_a <- heat_data_a[c(dr_nodes_a, dr_san_a, dr_avn_a), c("SA node", "AVC", "aCM", "vCM")]
+
+fig <- pheatmap(
+  heat_data_a,
+  cluster_rows = F,
+  cluster_cols = F,
+  color = colorRampPalette(c('#f7fbff', '#9ecae1', '#084594'))(1000),
+  border_color = NA,
+  show_rownames = F,
+  fontsize_col = 14,
+  angle_col=0,
+  legend = F
+)
+
+ggsave('heatmap_zf_adult.tiff', fig, width=3, height=12.5, dpi=600)
+
+fig <- pheatmap(
+  heat_data_a,
+  cluster_rows = F,
+  cluster_cols = F,
+  color = colorRampPalette(c('#f7fbff', '#9ecae1', '#084594'))(1000),
+  border_color = NA,
+  show_rownames = F,
+  fontsize_col = 14,
+  angle_col=0
+)
+
+ggsave('heatmap_zf_adult_legend.tiff', fig, width=3, height=12.5, dpi=600)
+
+avg_carey_expr_full <- AverageExpression(
+  subset(mc, subset = group %in% c("zebrafish_uninjured", "medaka_uninjured")),
+  assays = "RNA",
+  slot = "data",
+  features = NULL,
+  group.by = "cell_class"
+)$RNA
+
+heat_data_carey <- avg_carey_expr_full[rownames(avg_carey_expr_full) %in% c(zf_trbc, mdk_trbc, zf_cort, mdk_cort), ]
+
+heat_data_carey <- t(scale(t(heat_data_carey)))
+heat_data_carey <- heat_data_carey[c(zf_trbc, mdk_trbc, zf_cort, mdk_cort), c("Trabecular", "Cortical")]
+
+
+library(pheatmap)
+
+fig <- pheatmap(
+  t(heat_data_carey),
+  cluster_rows = F,
+  cluster_cols = F,
+  color = colorRampPalette(c('#f2f0f7', '#bcbddc', '#756bb1'))(1000),
+  border_color = NA,
+  show_colnames = F,
+  show_rownames=F,
+  legend = F
+)
+
+ggsave('heatmap_zf_mdk_trbc_cort.tiff', fig, width=7, height=2.5, dpi=600)
+
+fig <- pheatmap(
+  t(heat_data_carey),
+  cluster_rows = F,
+  cluster_cols = F,
+  color = colorRampPalette(c('#f2f0f7', '#bcbddc', '#756bb1'))(1000),
+  border_color = NA,
+  show_colnames = F,
+  show_rownames=F
+)
+
+ggsave('heatmap_zf_mdk_trbc_cort_legend.tiff', fig, width=7, height=2.5, dpi=600)
+
+```
