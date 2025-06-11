@@ -1,0 +1,501 @@
+---
+title: "Rat"
+output: html_document
+date: "2025-06-11"
+---
+
+# find rat markers
+```{r}
+
+# criteria: adjusted P < 0.05, pct expression in cell type > 10, absolute fold change > 1.5
+
+mark_san_rat <- FindMarkers(rcm, ident.1='SA node', ident.2='SAN_aCM', only.pos=T, min.pct=0.1)
+mark_san_rat <- mark_san_rat %>% filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1 >= 0.1) # for FC > 1.5
+
+mark_avn_rat <- FindMarkers(rcm, ident.1='Compact AV node', ident.2='AVN_aCM', only.pos=T, min.pct=0.1)
+mark_avn_rat <- mark_avn_rat %>% filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1 >= 0.1) # for FC > 1.5
+
+mark_nodes_rat <- FindMarkers(rcm, ident.1=c('SA node', 'Compact AV node'), ident.2=c('SAN_aCM', 'AVN_aCM'), only.pos=T, min.pct=0.1)
+mark_nodes_rat <- mark_nodes_rat %>% filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1 >= 0.1) # for FC > 1.5
+
+mark_lnb_rat <- FindMarkers(rcm, ident.1 = 'Lower nodal bundle', ident.2 = 'AVN_aCM', only.pos = TRUE, min.pct = 0.1)
+mark_lnb_rat <- mark_lnb_rat %>% filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1 >= 0.1)
+
+rat_san_vs_avn <- FindMarkers(rcm, ident.1='SA node', ident.2=c('Compact AV node', 'Lower nodal bundle'), only.pos=T, min.pct=0.1)
+rat_san_vs_avn <- rat_san_vs_avn %>% filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1 >= 0.1)
+
+rat_avn_vs_san <- FindMarkers(rcm, ident.1='Compact AV node', ident.2=c('SA node', 'Lower nodal bundle'), only.pos=T, min.pct=0.1)
+rat_avn_vs_san <- rat_avn_vs_san %>% filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1 >= 0.1)
+
+rat_nodes_vs_lnb <- FindMarkers(rcm, ident.1=c('SA node', 'Compact AV node'), ident.2=c('Lower nodal bundle'), only.pos=T, min.pct=0.1)
+rat_nodes_vs_lnb <- rat_nodes_vs_lnb %>% filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1 >= 0.1)
+
+rat_lnb_vs_ccs <- FindMarkers(rccs, ident.1 = 'Lower nodal bundle', only.pos = TRUE, min.pct = 0.1)
+rat_lnb_vs_ccs <- rat_lnb_vs_rcm %>% filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1 >= 0.1)
+
+# retain genes enriched in cell type vs non-CCS cardiomyocytes, and rest of CCS
+rat_san <- intersect(rownames(mark_san_rat), rownames(rat_san_vs_avn))
+rat_avn <- intersect(rownames(mark_avn_rat), rownames(rat_avn_vs_san))
+rat_nodes <- intersect(rownames(mark_nodes_rat), rownames(rat_nodes_vs_lnb))
+rat_lnb <- intersect(rownames(mark_lnb_rat), rownames(rat_lnb_vs_ccs))
+
+```
+
+# plot heatmap of rat CCS-specific genes
+```{r}
+
+rcm <- SetIdent(rcm, WhichCells(rcm, idents=c('AVN_aCM', 'SAN_aCM')), 'aCM')
+Idents(rcm) <- factor(Idents(rcm), levels=c('vCM', 'aCM', 'Lower nodal bundle', 'Compact AV node', 'SA node'))
+rcm$sub_ccs2 <- Idents(rcm)
+
+avg_rcm_expr_full <- AverageExpression(
+  rcm,
+  assays = "RNA",
+  slot = "data",
+  features = NULL,
+  group.by = "sub_ccs2"
+)$RNA
+
+heat_data_rat <- avg_rcm_expr_full[rownames(avg_rcm_expr_full) %in% c(rownames(mark_san_rat), rownames(mark_avn_rat), rownames(mark_lnb_rat)), ]
+
+heat_data_z_rat <- t(scale(t(heat_data_rat)))
+heat_data_z_rat <- heat_data_z_rat[c(rownames(mark_san_rat), rownames(mark_avn_rat), rownames(mark_lnb_rat)), c("SA node", "Compact AV node", "Lower nodal bundle", "aCM", "vCM")]
+
+library(pheatmap)
+
+fig <- pheatmap(
+  t(heat_data_z_rat),
+  cluster_rows = F,
+  cluster_cols = F,
+  color = colorRampPalette(c('#f5f9fe', '#7A83B8', '#2B3050'))(1000),
+  border_color = "black",
+  show_rownames = F,
+  show_colnames = F,
+  legend=F
+)
+
+ggsave('rat_ccs_specific_heatmap_nolegend.tiff', fig, dpi=600, width=14, height=3)
+
+```
+
+
+# compare with mouse postnatal and human adult
+```{r}
+
+# ortholog conversion (for rat -> human)
+
+rn_to_hs_san_a <- ortholog_df[ortholog_df$mm %in% rat_san,]
+rn_to_hs_avn_a <- ortholog_df[ortholog_df$mm %in% rat_avn,]
+rn_to_hs_nodes_a <- ortholog_df[ortholog_df$mm %in% rat_nodes,]
+
+# shared markers
+
+shared_san_rn_hs_a <- intersect(hsa_san, rn_to_hs_san_a$hs)
+shared_avn_rn_hs_a <- intersect(hsa_avn, rn_to_hs_avn_a$hs)
+shared_nodes_rn_hs_a <- intersect(hsa_nodes, rn_to_hs_nodes_a$hs)
+
+shared_san_mm_rn_a <- ortholog_df[ortholog_df$mm %in% intersect(mmp_san, rat_san),]$hs
+shared_avn_mm_rn_a <- ortholog_df[ortholog_df$mm %in% intersect(mmp_avn, rat_avn),]$hs
+shared_nodes_mm_rn_a <- ortholog_df[ortholog_df$mm %in% intersect(mmp_nodes, rat_nodes),]$hs
+
+mark_lnb_mmp <- FindMarkers(occs, ident.1 = 'Lower nodal bundle', ident.2 = 'vCM', only.pos = TRUE, min.pct = 0.1)
+mark_lnb_mmp <- mark_lnb_mmp %>% filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1 >= 0.1)
+
+mmp_lnb_vs_rcm <- FindMarkers(occs_no_cm, ident.1 = 'Lower nodal bundle', only.pos = TRUE, min.pct = 0.1)
+mmp_lnb_vs_rcm <- mmp_lnb_vs_rcm %>% filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1 >= 0.1)
+
+mmp_lnb <- intersect(rownames(mark_lnb_mmp), rownames(mmp_lnb_vs_rcm))
+
+mark_lnb_hse <- FindMarkers(fcm, ident.1 = 'Lower nodal bundle', ident.2 = 'vCM', only.pos = TRUE, min.pct = 0.1)
+mark_lnb_hse <- mark_lnb_hse %>% filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1 >= 0.1)
+
+hse_lnb_vs_rcm <- FindMarkers(fccs, ident.1 = 'Lower nodal bundle', only.pos = TRUE, min.pct = 0.1)
+hse_lnb_vs_rcm <- hse_lnb_vs_rcm %>% filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1 >= 0.1)
+
+hse_lnb <- intersect(rownames(mark_lnb_hse), rownames(hse_lnb_vs_rcm))
+
+shared_lnb_mm_rn_a <- intersect(mmp_lnb, rat_lnb)
+shared_lnb_mmp_hse <- intersect(hse_lnb, ortholog_df[ortholog_df$mm %in% mmp_lnb,]$hs)
+shared_lnb_rna_hse <- intersect(hse_lnb, ortholog_df[ortholog_df$mm %in% rat_lnb,]$hs)
+
+```
+
+
+# rat-specific genes
+```{r}
+
+library(scCustomize)
+
+# percent expression of rat regional markers in human CCS
+percent_hs_san_a_rat <- Percent_Expressing(kccs, ortholog_df[ortholog_df$mm %in% rat_san,]$hs, group_by='sub_ccs')
+percent_hs_avn_a_rat <- Percent_Expressing(kccs, ortholog_df[ortholog_df$mm %in% rat_avn,]$hs, group_by='sub_ccs')
+percent_hs_nodes_a_rat <- Percent_Expressing(kccs, ortholog_df[ortholog_df$mm %in% rat_nodes,]$hs, group_by='sub_ccs')
+
+# percent expression of rat regional markers in mouse CCS
+percent_mm_san_a_rat <- Percent_Expressing(occs, rat_san, group_by='sub_ccs')
+percent_mm_avn_a_rat <- Percent_Expressing(occs, rat_avn, group_by='sub_ccs')
+percent_mm_nodes_a_rat <- Percent_Expressing(occs, rat_nodes, group_by='sub_ccs')
+
+# rat-specific genes: <10% expression in both human and mouse, or not detected at all
+
+# rat-specific SAN markers
+san_rat_specific_a <- c(
+  intersect(
+    rownames(percent_hs_san_a_rat[percent_hs_san_a_rat$SA.node < 5, ]),
+    ortholog_df[ortholog_df$mm %in% rownames(percent_mm_san_a_rat[percent_mm_san_a_rat$SA.node < 5, ]),]$hs
+  ),
+  intersect(
+  rn_to_hs_san_a[rn_to_hs_san_a$hs %!in% rownames(kccs),]$hs,  # not detected in human
+  rat_san[rat_san %!in% rownames(occs)]   # not detected in mouse
+  )
+)
+
+# rat-specific AVN markers
+avn_rat_specific_a <- c(
+  intersect(
+    rownames(percent_hs_avn_a_rat[percent_hs_avn_a_rat$Compact.AV.node < 5, ]),
+    ortholog_df[ortholog_df$mm %in% rownames(percent_mm_avn_a_rat[percent_mm_avn_a_rat$Compact.AV.node < 5, ]),]$hs
+  ),
+  intersect(
+  rn_to_hs_avn_a[rn_to_hs_avn_a$hs %!in% rownames(kccs),]$hs,  # not detected in human
+  rat_avn[rat_avn %!in% rownames(occs)]   # not detected in mouse
+  )
+)
+
+# rat-specific nodal markers (SAN + AVN both <5%)
+nodes_rat_specific_a <- c(
+  intersect(
+    rownames(percent_hs_nodes_a_rat[percent_hs_nodes_a_rat$SA.node < 5, ]),
+    ortholog_df[ortholog_df$mm %in% rownames(percent_mm_nodes_a_rat[percent_mm_nodes_a_rat$SA.node < 5, ]),]$hs
+  ),
+  intersect(
+  rn_to_hs_nodes_a[rn_to_hs_nodes_a$hs %!in% rownames(kccs),]$hs,  # not detected in human
+  rat_nodes[rat_nodes %!in% rownames(occs)]   # not detected in mouse
+  )
+)
+
+# percent expression of rat LNB markers in human CCS
+percent_hs_lnb_a_rat <- Percent_Expressing(fccs, ortholog_df[ortholog_df$mm %in% rat_lnb,]$hs, group_by='sub_ccs')
+
+# percent expression of rat LNB markers in mouse CCS
+percent_mm_lnb_a_rat <- Percent_Expressing(occs, rat_lnb, group_by='sub_ccs')
+
+rn_to_hs_lnb_a <- ortholog_df[ortholog_df$mm %in% rat_lnb, ]
+
+# rat-specific LNB markers
+lnb_rat_specific_a <- c(
+  # low expression in both human and mouse
+  intersect(
+    rownames(percent_hs_lnb_a_rat[percent_hs_lnb_a_rat$`Lower.nodal.bundle` < 5, ]),
+    ortholog_df[ortholog_df$mm %in% rownames(percent_mm_lnb_a_rat[percent_mm_lnb_a_rat$`Lower.nodal.bundle` < 5, ]),]$hs
+  ),
+  # not detected in human or mouse
+  intersect(
+    rn_to_hs_lnb_a[rn_to_hs_lnb_a$hs %!in% rownames(fccs),]$hs, # not detected in human
+    rat_lnb[rat_lnb %!in% rownames(occs)] # not detected in mouse
+  )
+)
+
+# get rat gene names
+san_rat_specific_a_mm <- ortholog_df$mm[match(san_rat_specific_a, ortholog_df$hs)]
+avn_rat_specific_a_mm <- ortholog_df$mm[match(avn_rat_specific_a, ortholog_df$hs)]
+nodes_rat_specific_a_mm <- ortholog_df$mm[match(nodes_rat_specific_a, ortholog_df$hs)]
+lnb_rat_specific_a_mm <- ortholog_df$mm[match(lnb_rat_specific_a, ortholog_df$hs)]
+
+```
+
+# plot dot plots
+```{r}
+
+rcm <- SetIdent(rcm, WhichCells(rcm, idents=c('AVN_aCM', 'SAN_aCM', '9: ACM')), 'aCM')
+Idents(rcm) <- factor(Idents(rcm), levels=rev(c('vCM', 'aCM', 'Lower nodal bundle', 'Compact AV node', 'SA node')))
+rcm$sub_ccs2 <- Idents(rcm)
+
+shared_rn_hs_all <- unique(c(
+  shared_san_rn_hs_a,
+  shared_avn_rn_hs_a,
+  shared_nodes_rn_hs_a
+))
+
+shared_mm_rn_all <- unique(c(
+  shared_san_mm_rn_a,
+  shared_avn_mm_rn_a,
+  shared_nodes_mm_rn_a
+))
+
+fig <- DotPlot(
+  rcm,
+  features = rev(ortholog_df$mm[match(unique(c(
+  intersect(shared_nodes_rn_hs_a, shared_nodes_mm_rn_a),
+  setdiff(shared_nodes_mm_rn_a, shared_rn_hs_all),
+  setdiff(shared_nodes_rn_hs_a, shared_mm_rn_all),
+  nodes_rat_specific_a
+)), ortholog_df$hs)]),
+  idents = c(
+    'SA node',
+    'Compact AV node',
+    'Lower nodal bundle',
+    'aCM',
+    'vCM'
+  ),
+  cols = c('whitesmoke', '#6C410A'),
+  col.min = -1,
+  col.max = 1.5,
+  dot.scale = 10,
+  dot.min = -0.10,
+  scale.max = 100
+) &
+  scale_size_area(limits = c(0, 100), max_size = 6, breaks = c(0, 20, 40, 60, 80, 100)) &
+  theme(
+    axis.line = element_blank(),
+    panel.border = element_rect(color = "black", fill = NA, size = 1),
+    axis.title = element_blank(),
+    axis.text.y = element_text(face='italic', size=14),
+    axis.text.x = element_text(size=14, angle=45, hjust=1, vjust=1)
+  ) & NoLegend() & coord_flip()
+
+ggsave('/Users/marwanbakr/docs/kimlab/manuscripts/2024 CCS comparative/figures/fig6/rat_nodes_dotplot_v2.tiff', fig, dpi=600, width=3.27, height=8)
+
+fig <- DotPlot(
+  rcm,
+  features = rev(ortholog_df$mm[match(unique(c(
+  intersect(shared_nodes_rn_hs_a, shared_nodes_mm_rn_a),
+  setdiff(shared_nodes_mm_rn_a, shared_rn_hs_all),
+  setdiff(shared_nodes_rn_hs_a, shared_mm_rn_all),
+  nodes_rat_specific_a
+)), ortholog_df$hs)]),
+  idents = c(
+    'SA node',
+    'Compact AV node',
+    'Lower nodal bundle',
+    'aCM',
+    'vCM'
+  ),
+  cols = c('whitesmoke', '#6C410A'),
+  col.min = -1,
+  col.max = 1.5,
+  dot.scale = 10,
+  dot.min = -0.10,
+  scale.max = 100
+) &
+  scale_size_area(limits = c(0, 100), max_size = 6, breaks = c(0, 20, 40, 60, 80, 100)) &
+  theme(
+    axis.line = element_blank(),
+    panel.border = element_rect(color = "black", fill = NA, size = 1),
+    axis.title = element_blank(),
+    axis.text.y = element_blank(),
+    axis.text.x = element_text(size=14, angle=45, hjust=1, vjust=1)
+  ) & NoLegend() & coord_flip()
+
+ggsave('/Users/marwanbakr/docs/kimlab/manuscripts/2024 CCS comparative/figures/fig6/rat_nodes_dotplot_v2_blank.tiff', fig, dpi=600, width=3.27, height=8)
+
+fig <- DotPlot(
+  rcm,
+  features = rev(ortholog_df$mm[match(unique(c(
+  intersect(shared_san_rn_hs_a, shared_san_mm_rn_a),
+  setdiff(shared_san_mm_rn_a, shared_rn_hs_all),
+  setdiff(shared_san_rn_hs_a, shared_mm_rn_all),
+  san_rat_specific_a
+)), ortholog_df$hs)]),
+  idents = c(
+    'SA node',
+    'Compact AV node',
+    'Lower nodal bundle',
+    'aCM',
+    'vCM'
+  ),
+  cols = c('whitesmoke', '#861D21'),
+  col.min = -1,
+  col.max = 1.5,
+  dot.scale = 10,
+  dot.min = -0.10,
+  scale.max = 100
+) &
+  scale_size_area(limits = c(0, 100), max_size = 6, breaks = c(0, 20, 40, 60, 80, 100)) &
+  theme(
+    axis.line = element_blank(),
+    panel.border = element_rect(color = "black", fill = NA, size = 1),
+    axis.title = element_blank(),
+    axis.text.y = element_text(face='italic', size=14),
+    axis.text.x = element_text(size=14, angle=45, hjust=1, vjust=1)
+  ) & NoLegend() & coord_flip()
+
+ggsave('/Users/marwanbakr/docs/kimlab/manuscripts/2024 CCS comparative/figures/fig6/rat_san_dotplot_v2.tiff', fig, dpi=600, width=3.27, height=8)
+
+fig <- DotPlot(
+  rcm,
+  features = rev(ortholog_df$mm[match(unique(c(
+  intersect(shared_san_rn_hs_a, shared_san_mm_rn_a),
+  setdiff(shared_san_mm_rn_a, shared_rn_hs_all),
+  setdiff(shared_san_rn_hs_a, shared_mm_rn_all),
+  san_rat_specific_a
+)), ortholog_df$hs)]),
+  idents = c(
+    'SA node',
+    'Compact AV node',
+    'Lower nodal bundle',
+    'aCM',
+    'vCM'
+  ),
+  cols = c('whitesmoke', '#861D21'),
+  col.min = -1,
+  col.max = 1.5,
+  dot.scale = 10,
+  dot.min = -0.10,
+  scale.max = 100
+) &
+  scale_size_area(limits = c(0, 100), max_size = 6, breaks = c(0, 20, 40, 60, 80, 100)) &
+  theme(
+    axis.line = element_blank(),
+    panel.border = element_rect(color = "black", fill = NA, size = 1),
+    axis.title = element_blank(),
+    axis.text.y = element_blank(),
+    axis.text.x = element_text(size=14, angle=45, hjust=1, vjust=1)
+  ) & NoLegend() & coord_flip()
+
+ggsave('/Users/marwanbakr/docs/kimlab/manuscripts/2024 CCS comparative/figures/fig6/rat_san_dotplot_v2_blank.tiff', fig, dpi=600, width=3.27, height=8)
+
+fig <- DotPlot(
+  rcm,
+  features = rev(ortholog_df$mm[match(unique(c(
+  intersect(shared_avn_rn_hs_a, shared_avn_mm_rn_a),
+  setdiff(shared_avn_mm_rn_a, shared_rn_hs_all),
+  setdiff(shared_avn_rn_hs_a, shared_mm_rn_all),
+  avn_rat_specific_a
+)), ortholog_df$hs)]),
+  idents = c(
+    'SA node',
+    'Compact AV node',
+    'Lower nodal bundle',
+    'aCM',
+    'vCM'
+  ),
+  cols = c('whitesmoke', '#E7AD0D'),
+  col.min = -1,
+  col.max = 1.5,
+  dot.scale = 10,
+  dot.min = -0.10,
+  scale.max = 100
+) &
+  scale_size_area(limits = c(0, 100), max_size = 6, breaks = c(0, 20, 40, 60, 80, 100)) &
+  theme(
+    axis.line = element_blank(),
+    panel.border = element_rect(color = "black", fill = NA, size = 1),
+    axis.title = element_blank(),
+    axis.text.y = element_text(face='italic', size=14),
+    axis.text.x = element_text(size=14, angle=45, hjust=1, vjust=1)
+  ) & NoLegend() & coord_flip()
+
+ggsave('/Users/marwanbakr/docs/kimlab/manuscripts/2024 CCS comparative/figures/fig6/rat_avn_dotplot_v2.tiff', fig, dpi=600, width=3.27, height=8)
+
+fig <- DotPlot(
+  rcm,
+  features = rev(ortholog_df$mm[match(unique(c(
+  intersect(shared_avn_rn_hs_a, shared_avn_mm_rn_a),
+  setdiff(shared_avn_mm_rn_a, shared_rn_hs_all),
+  setdiff(shared_avn_rn_hs_a, shared_mm_rn_all),
+  avn_rat_specific_a
+)), ortholog_df$hs)]),
+  idents = c(
+    'SA node',
+    'Compact AV node',
+    'Lower nodal bundle',
+    'aCM',
+    'vCM'
+  ),
+  cols = c('whitesmoke', '#E7AD0D'),
+  col.min = -1,
+  col.max = 1.5,
+  dot.scale = 10,
+  dot.min = -0.10,
+  scale.max = 100
+) &
+  scale_size_area(limits = c(0, 100), max_size = 6, breaks = c(0, 20, 40, 60, 80, 100)) &
+  theme(
+    axis.line = element_blank(),
+    panel.border = element_rect(color = "black", fill = NA, size = 1),
+    axis.title = element_blank(),
+    axis.text.y = element_blank(),
+    axis.text.x = element_text(size=14, angle=45, hjust=1, vjust=1)
+  ) & NoLegend() & coord_flip()
+
+ggsave('/Users/marwanbakr/docs/kimlab/manuscripts/2024 CCS comparative/figures/fig6/rat_avn_dotplot_v2_blank.tiff', fig, dpi=600, width=3.27, height=8)
+
+fig <- DotPlot(
+  rcm,
+  features = rev(ortholog_df$mm[match(unique(c(
+  intersect(shared_avn_rn_hs_a, shared_avn_mm_rn_a),
+  setdiff(shared_avn_mm_rn_a, shared_rn_hs_all),
+  setdiff(shared_avn_rn_hs_a, shared_mm_rn_all),
+  avn_rat_specific_a
+)), ortholog_df$hs)]),
+  idents = c(
+    'SA node',
+    'Compact AV node',
+    'Lower nodal bundle',
+    'aCM',
+    'vCM'
+  ),
+  cols = c('whitesmoke', '#E7AD0D'),
+  col.min = -1,
+  col.max = 1.5,
+  dot.scale = 10,
+  dot.min = -0.10,
+  scale.max = 100
+) &
+  scale_size_area(limits = c(0, 100), max_size = 6, breaks = c(0, 20, 40, 60, 80, 100)) &
+theme(
+    axis.line = element_blank(),
+    panel.border = element_rect(color = "black", fill = NA, size = 1),
+    axis.title = element_blank(),
+    axis.text.x = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    legend.position = "bottom"
+  ) &
+  guides(
+    size = guide_legend(title.position = "top", direction = "horizontal"),
+    colour = "none"
+  ) & labs(
+  size = NULL,
+  colour = NULL
+) & coord_flip()
+
+ggsave('/Users/marwanbakr/docs/kimlab/manuscripts/2024 CCS comparative/figures/fig6/rat_avn_dotplot_v2_blank_legend.tiff', fig, dpi=600, width=3.27, height=8)
+
+fig <- DotPlot(
+  rcm,
+  features = c(shared_lnb_mm_rn_a, ortholog_df[ortholog_df$hs %in% shared_lnb_rna_hse,]$mm, ortholog_df[ortholog_df$hs %in% lnb_rat_specific_a,]$mm),
+  idents = c(
+    'SA node',
+    'Compact AV node',
+    'Lower nodal bundle',
+    'aCM',
+    'vCM'
+  ),
+  cols = c('whitesmoke', '#9DC183'),
+  col.min = -1,
+  col.max = 1.5,
+  dot.scale = 10,
+  dot.min = -0.10,
+  scale.max = 100
+) &
+  scale_size_area(limits = c(0, 100), max_size = 6, breaks = c(0, 20, 40, 60, 80, 100)) &
+  theme(
+    axis.line = element_blank(),
+    panel.border = element_rect(color = "black", fill = NA, size = 1),
+    axis.title = element_blank(),
+    axis.text.x = element_text(face='italic', angle=90, hjust=0.9, vjust=0.5, size=14),
+    axis.text.y = element_text(size=14)
+  ) & labs(
+  size = "Percent expression",
+  colour = "Average expression"
+) &
+  guides(
+    size = guide_legend(title.position = "top"),
+    colour = guide_colourbar(title.position = "top")
+  )
+
+ggsave('/Users/marwanbakr/docs/kimlab/manuscripts/2024 CCS comparative/figures/fig6/rat_lnb_dotplot.tiff', fig, dpi=600, width=16, height=4.5)
+
+```

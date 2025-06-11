@@ -1,0 +1,101 @@
+---
+title: "Rat_Annotation"
+output: html_document
+date: "2025-06-11"
+---
+
+# load and process data
+```{r}
+
+library(Seurat)
+library(tidyverse)
+library(Matrix)
+
+counts <- read.csv('rat_san_avn_cm_counts.csv', row.names = 1, header = T)
+meta <- read.csv('rat_san_avn_cm_metadata.csv', row.names=1, header=T)
+
+rcm <- CreateSeuratObject(t(counts), meta.data = meta)
+
+rcm <- NormalizeData(rcm)
+rcm <- FindVariableFeatures(rcm)
+rcm <- ScaleData(rcm)
+rcm <- RunPCA(rcm)
+rcm <- FindNeighbors(rcm, dims=1:20)
+rcm <- RunUMAP(rcm, dims=1:20)
+
+```
+
+# annotate cell types
+```{r}
+
+Idents(rcm) <- rcm$leiden1p2_short_labels
+racm <- subset(rcm, idents='9: ACM')
+
+racm <- NormalizeData(racm)
+racm <- FindVariableFeatures(racm)
+racm <- ScaleData(racm)
+racm <- RunPCA(racm)
+racm <- FindNeighbors(racm, dims=1:20)
+racm <- RunUMAP(racm, dims=1:20)
+
+rcm <- SetIdent(rcm, WhichCells(rcm, idents='3: VCM'), 'vCM')
+rcm <- SetIdent(rcm, WhichCells(rcm, expression = tissue == 'av_node' & cell_type__ontology_label != "cardiac pacemaker cell of sinoatrial node" & leiden1p2_short_labels == '9: ACM'), 'AVN_aCM')
+rcm <- SetIdent(rcm, WhichCells(rcm, expression = tissue == 'sa_node' & cell_type__ontology_label != "cardiac pacemaker cell of sinoatrial node" & leiden1p2_short_labels != '9: ACM'), 'SAN_aCM')
+rcm <- SetIdent(rcm, WhichCells(rcm, expression = tissue == 'av_node' & cell_type__ontology_label == "cardiac pacemaker cell of sinoatrial node"), 'AV node')
+rcm <- SetIdent(rcm, WhichCells(rcm, expression = tissue == 'sa_node' & cell_type__ontology_label == "cardiac pacemaker cell of sinoatrial node"), 'SA node')
+
+avn <- subset(rcm, idents='AV node')
+avn <- NormalizeData(avn)
+avn <- FindVariableFeatures(avn)
+avn <- ScaleData(avn)
+avn <- RunPCA(avn)
+avn <- FindNeighbors(avn, dims=1:20)
+avn <- RunUMAP(avn, dims=1:20)
+avn <- FindClusters(avn, resolution=0.25)
+
+rcm <- SetIdent(rcm, WhichCells(avn, idents='0'), 'Compact AV node')
+rcm <- SetIdent(rcm, WhichCells(avn, idents='1'), 'Lower nodal bundle')
+rcm$sub_ccs <- Idents(rcm)
+
+```
+
+# plot UMAP and markers
+```{r}
+
+racm <- SetIdent(racm, WhichCells(racm, expression = tissue == 'av_node' & cell_type__ontology_label != "cardiac pacemaker cell of sinoatrial node"), 'AVN_aCM')
+racm <- SetIdent(racm, WhichCells(racm, expression = tissue == 'sa_node' & cell_type__ontology_label != "cardiac pacemaker cell of sinoatrial node"), 'SAN_aCM')
+racm <- SetIdent(racm, WhichCells(avn, idents='1'), 'Lower nodal bundle')
+racm <- SetIdent(racm, WhichCells(avn, idents='0'), 'Compact AV node')
+racm <- SetIdent(racm, WhichCells(racm, expression = tissue == 'sa_node' & cell_type__ontology_label == "cardiac pacemaker cell of sinoatrial node"), 'SA node')
+
+fig <- DimPlot(racm, cols=c("#861d21", "#F4C542", "#9DC183", "#5E6367", "#B0B4B9"), pt.size=0.6) & NoAxes() & theme(plot.title=element_blank(), legend.text = element_text(size=16))
+
+ggsave('san_avn_acm_umap.tiff', fig, dpi=600, height=7, width=11)
+
+fig <- DotPlot(
+  racm,
+  rev(c('Tbx3',
+    'Cacna1d',
+    'Shox2',
+    'Vsnl1',
+    'Rspo3',
+    'Hs3st3a1',
+    'Myl2',
+    'Myl7'
+  )),
+  cols = c('whitesmoke', '#ad2831'),
+  dot.scale = 10,
+  dot.min = -0.10
+) &
+  scale_size(breaks = c(0, 20, 40, 60, 80, 100)) &
+  theme(
+    axis.title = element_blank(),
+    axis.text.y = element_text(face='italic'),
+    panel.border = element_rect(color = "black", fill = NA, size = 1),
+    axis.line = element_blank(),
+    axis.text.x=element_text(angle=45, hjust=1, vjust=1)
+  ) & coord_flip() & guides(size = guide_legend(order=1, title='Percent Expression'))
+
+ggsave('rat_markers_dotplot.tiff', fig, dpi=600, width=7, height=6)
+
+```

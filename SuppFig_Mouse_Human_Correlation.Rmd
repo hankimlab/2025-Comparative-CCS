@@ -1,0 +1,44 @@
+---
+title: "Mouse_Human_Correlation"
+output: html_document
+date: "2025-06-11"
+---
+
+# correlation - species comparison at corresponding developmental stage
+```{r}
+
+cor_mtx_e <- cor(avg_gccs_expr, avg_fccs_expr)
+cor_mtx_e <- scale(t(cor_mtx_e))
+cor_mtx_e <- t(cor_mtx_e)
+
+colnames(cor_mtx_e) <- gsub(" \\(.*?\\)", "", colnames(cor_mtx_e)) # remove species, stage identifier
+rownames(cor_mtx_e) <- gsub(" \\(.*?\\)", "", rownames(cor_mtx_e))
+cor_mtx_e <- cor_mtx_e[c('SAN head', 'SAN tail', 'Tz-SAN', 'Compact AVN', 'Nodal AVR', 'Atrial TZ', 'Tz-AVR', 'His bundle', 'Ventricular TZ', 'Tz-PF', 'PF'), c('SAN head', 'SAN tail', 'Tz-SAN', 'Compact AVN', 'Lower nodal bundle', 'His bundle', 'Purkinje fibers')]
+
+tiff('correlation_mouse_human_embryonic.tiff', 
+     width = 5.5, height = 6, units = "cm", res = 400)
+
+pheatmap(cor_mtx_e, cluster_rows = F, cluster_cols = F, 
+         color = colorRampPalette(c('#f5f9fe', '#7ab6d9', '#08326e'))(1000), 
+         border_color = NA, show_rownames = F, show_colnames = F)
+
+dev.off()
+
+cor_mtx_a <- cor(avg_occs_expr, avg_kccs_expr)
+cor_mtx_a <- scale(t(cor_mtx_a))
+cor_mtx_a <- t(cor_mtx_a)
+
+colnames(cor_mtx_a) <- gsub(" \\(.*?\\)", "", colnames(cor_mtx_a)) # remove species, stage identifier
+rownames(cor_mtx_a) <- gsub(" \\(.*?\\)", "", rownames(cor_mtx_a))
+cor_mtx_a <- cor_mtx_a[c('SA node', 'Compact AV node', 'Lower nodal bundle', 'His bundle', 'Proximal bundle branch', 'Distal bundle branch', 'Purkinje fibers'), c('SA node', 'Compact AV node', 'His bundle', 'Purkinje fibers')]
+
+tiff('correlation_mouse_human_adult.tiff', 
+     width = 5.5, height = 6, units = "cm", res = 400)
+
+pheatmap(cor_mtx_a, cluster_rows = F, cluster_cols = F, 
+         color = colorRampPalette(c('#f5f9fe', '#7ab6d9', '#08326e'))(1000), 
+         border_color = NA, show_rownames = F, show_colnames = F)
+
+dev.off()
+
+```

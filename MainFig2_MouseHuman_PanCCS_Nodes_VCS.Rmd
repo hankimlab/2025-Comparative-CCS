@@ -1,0 +1,1019 @@
+---
+title: "MouseHuman_PanCCS_Nodes_VCS"
+output: html_document
+date: "2025-06-11"
+---
+
+# fetal human pan-CCS markers
+```{r}
+
+atrial_CCS <- c("SAN tail", "SAN head", "Compact AVN")
+ventricular_CCS <- c("Purkinje fibers", "His bundle", "Lower nodal bundle")
+aCM <- "aCM"
+vCM <- "vCM"
+
+de_atrial_CCS_vs_aCM_he <- FindMarkers(fcm, ident.1 = atrial_CCS, ident.2 = aCM, group.by = "sub_ccs")
+de_ventricular_CCS_vs_vCM_he <- FindMarkers(fcm, ident.1 = ventricular_CCS, ident.2 = vCM, group.by = "sub_ccs")
+
+up_atrial_CCS <- rownames(de_atrial_CCS_vs_aCM_he[de_atrial_CCS_vs_aCM_he$avg_log2FC > log2(3) & de_atrial_CCS_vs_aCM_he$p_val_adj < 0.05, ])
+up_ventricular_CCS <- rownames(de_ventricular_CCS_vs_vCM_he[de_ventricular_CCS_vs_vCM_he$avg_log2FC > log2(3) & de_ventricular_CCS_vs_vCM_he$p_val_adj < 0.05, ])
+
+pan_CCS_genes <- intersect(up_atrial_CCS, up_ventricular_CCS)
+
+all_regions <- c(atrial_CCS, ventricular_CCS, aCM, vCM)
+
+get_expr_percentage_per_region <- function(seurat_obj, genes, regions) {
+  expr_matrix <- GetAssayData(seurat_obj, slot = "data")[genes, , drop = FALSE]
+  expr_matrix <- expr_matrix > 0  # convert to binary (presence/absence)
+  
+  expr_perc_list <- lapply(regions, function(region) {
+    rowMeans(expr_matrix[, seurat_obj$sub_ccs == region]) * 100
+  })
+  
+  expr_df <- as.data.frame(do.call(cbind, expr_perc_list))
+  colnames(expr_df) <- regions
+  expr_df$gene <- rownames(expr_df)
+  
+  return(expr_df)
+}
+
+expr_per_region <- get_expr_percentage_per_region(fcm, pan_CCS_genes, all_regions)
+
+filtered <- expr_per_region[expr_per_region$`SAN head` > 25 & expr_per_region$`SAN tail` > 25 & expr_per_region$`Compact AVN` > 25 & expr_per_region$`Lower nodal bundle` > 25 & expr_per_region$`His bundle` > 25 & expr_per_region$`Purkinje fibers` > 25,]
+
+filtered_he <- rownames(filtered)
+
+```
+
+# embryonic mouse pan-CCS markers
+```{r}
+
+atrial_CCS <- c("SAN tail", "SAN head", "Compact AVN", "Nodal AVR")
+ventricular_CCS <- c("PF", "His bundle")
+aCM <- "aCM"
+vCM <- "vCM"
+
+de_atrial_CCS_vs_aCM_me <- FindMarkers(gcm, ident.1 = atrial_CCS, ident.2 = aCM, group.by = "sub_ccs")
+de_ventricular_CCS_vs_vCM_me <- FindMarkers(gcm, ident.1 = ventricular_CCS, ident.2 = vCM, group.by = "sub_ccs")
+
+up_atrial_CCS <- rownames(de_atrial_CCS_vs_aCM_me[de_atrial_CCS_vs_aCM_me$avg_log2FC > log2(3) & de_atrial_CCS_vs_aCM_me$p_val_adj < 0.05, ])
+up_ventricular_CCS <- rownames(de_ventricular_CCS_vs_vCM_me[de_ventricular_CCS_vs_vCM_me$avg_log2FC > log2(3) & de_ventricular_CCS_vs_vCM_me$p_val_adj < 0.05, ])
+
+pan_CCS_genes <- intersect(up_atrial_CCS, up_ventricular_CCS)
+
+all_regions <- c("PF", "His bundle", "Nodal AVR", "Compact AVN", "SAN tail", "SAN head", "aCM", "vCM")
+
+expr_per_region <- get_expr_percentage_per_region(gcm, pan_CCS_genes, all_regions)
+
+filtered <- expr_per_region[expr_per_region$`SAN head` > 25 & expr_per_region$`SAN tail` > 25 & expr_per_region$`Compact AVN` > 25 & expr_per_region$`His bundle` > 25 & expr_per_region$PF > 25,]
+filtered_me <- rownames(filtered)
+
+selected_genes <- c('Hcn4', 'Cntn2', 'Cpne5', 'Cacna2d2', 'Nptn', 'Ntm')
+pct_expr_atrial_CCS <- get_expr_percentage(gcm, selected_genes, atrial_CCS)
+pct_expr_aCM <- get_expr_percentage(gcm, selected_genes, aCM)
+pct_expr_ventricular_CCS <- get_expr_percentage(gcm, selected_genes, ventricular_CCS)
+pct_expr_vCM <- get_expr_percentage(gcm, selected_genes, vCM)
+
+p_values_df <- data.frame(
+  Gene = selected_genes,
+  p_val_adj_Atrial_vs_aCM = de_atrial_CCS_vs_aCM[selected_genes, "p_val_adj"],
+  p_val_adj_Ventricular_vs_vCM = de_ventricular_CCS_vs_vCM[selected_genes, "p_val_adj"],
+  pct_expr_Atrial_CCS = pct_expr_atrial_CCS,
+  pct_expr_aCM = pct_expr_aCM,
+  pct_expr_Ventricular_CCS = pct_expr_ventricular_CCS,
+  pct_expr_vCM = pct_expr_vCM
+)
+
+```
+
+# adult human pan-CCS markers
+```{r}
+
+atrial_CCS <- c("SA node", "Compact AV node")
+ventricular_CCS <- c("Purkinje fibers", "His bundle")
+aCM <- "aCM"
+vCM <- "vCM"
+
+de_atrial_CCS_vs_aCM_ha <- FindMarkers(kcm, ident.1 = atrial_CCS, ident.2 = aCM, group.by = "sub_ccs")
+de_ventricular_CCS_vs_vCM_ha <- FindMarkers(kcm, ident.1 = ventricular_CCS, ident.2 = vCM, group.by = "sub_ccs")
+
+up_atrial_CCS <- rownames(de_atrial_CCS_vs_aCM_ha[de_atrial_CCS_vs_aCM_ha$avg_log2FC > log2(3) & de_atrial_CCS_vs_aCM_ha$p_val_adj < 0.05, ])
+up_ventricular_CCS <- rownames(de_ventricular_CCS_vs_vCM_ha[de_ventricular_CCS_vs_vCM_ha$avg_log2FC > log2(3) & de_ventricular_CCS_vs_vCM_ha$p_val_adj < 0.05, ])
+
+pan_CCS_genes <- intersect(up_atrial_CCS, up_ventricular_CCS)
+
+all_regions <- c(atrial_CCS, ventricular_CCS, aCM, vCM)
+
+expr_per_region <- get_expr_percentage_per_region(kcm, pan_CCS_genes, all_regions)
+
+filtered <- expr_per_region[expr_per_region$`SA node` > 25 & expr_per_region$`Compact AV node` > 25 & expr_per_region$`His bundle` > 25 & expr_per_region$`Purkinje fibers` > 25,]
+
+filtered_ha <- rownames(filtered)
+
+selected_genes <- c('HCN4', 'CNTN2', 'CPNE5', 'CACNA2D2', 'NPTN', 'NTM')
+pct_expr_atrial_CCS <- get_expr_percentage(kcm, selected_genes, atrial_CCS)
+pct_expr_aCM <- get_expr_percentage(kcm, selected_genes, aCM)
+pct_expr_ventricular_CCS <- get_expr_percentage(kcm, selected_genes, ventricular_CCS)
+pct_expr_vCM <- get_expr_percentage(kcm, selected_genes, vCM)
+
+p_values_df <- data.frame(
+  Gene = selected_genes,
+  p_val_adj_Atrial_vs_aCM = de_atrial_CCS_vs_aCM[selected_genes, "p_val_adj"],
+  p_val_adj_Ventricular_vs_vCM = de_ventricular_CCS_vs_vCM[selected_genes, "p_val_adj"],
+  pct_expr_Atrial_CCS = pct_expr_atrial_CCS,
+  pct_expr_aCM = pct_expr_aCM,
+  pct_expr_Ventricular_CCS = pct_expr_ventricular_CCS,
+  pct_expr_vCM = pct_expr_vCM
+)
+
+
+```
+
+
+# postnatal mouse pan-CCS markers
+```{r}
+
+atrial_CCS <- c("SA node", "Compact AV node")
+ventricular_CCS <- c("Lower nodal bundle", "His bundle", "Proximal bundle branch", "Distal bundle branch", "Purkinje fibers")
+vCM <- "Contractile cardiomyocytes"
+
+de_CCS_vs_vCM_mp <- FindMarkers(occs, ident.1 = c(atrial_CCS, ventricular_CCS), ident.2 = vCM, group.by = "sub_all_onehis")
+
+pan_CCS_genes <- rownames(de_CCS_vs_vCM_mp[de_CCS_vs_vCM_mp$avg_log2FC > log2(3) & de_CCS_vs_vCM_mp$p_val_adj < 0.05, ])
+
+all_regions <- c(atrial_CCS, ventricular_CCS, vCM)
+
+get_expr_percentage_per_region <- function(seurat_obj, genes, regions) {
+  expr_matrix <- GetAssayData(seurat_obj, slot = "data")[genes, , drop = FALSE]
+  expr_matrix <- expr_matrix > 0  # convert to binary (presence/absence)
+  
+  expr_perc_list <- lapply(regions, function(region) {
+    rowMeans(expr_matrix[, seurat_obj$sub_ccs == region]) * 100
+  })
+  
+  expr_df <- as.data.frame(do.call(cbind, expr_perc_list))
+  colnames(expr_df) <- regions
+  expr_df$gene <- rownames(expr_df)
+  
+  return(expr_df)
+}
+
+expr_per_region <- get_expr_percentage_per_region(occs, pan_CCS_genes, all_regions)
+
+filtered <- expr_per_region[expr_per_region$`SA node` > 25 & expr_per_region$`Compact AV node` > 25 & expr_per_region$`Lower nodal bundle` > 25 & expr_per_region$`His bundle` > 25 & expr_per_region$`Proximal bundle branch` > 25 & expr_per_region$`Distal bundle branch` > 25 & expr_per_region$`Purkinje fibers` > 25,]
+filtered_mp <- rownames(filtered)
+
+# this dataset does not contain atrial cardiomyocytes, loading a separate dataset (GSE193346)
+
+cd1 <- readRDS ('cd1_object.rds')
+Idents(cd1) <- cd1$markFinal
+
+acm <- subset(cd1, idents='atrial_cm')
+Idents(acm) <- acm$stage
+
+acm <- subset(acm, idents=c('P1', 'P2', 'P4')) # same stages as CCS dataset
+acm <- NormalizeData(acm)
+acm <- FindVariableFeatures(acm)
+acm <- ScaleData(acm)
+acm <- RunPCA(acm)
+acm <- FindNeighbors(acm, dims=1:20)
+acm <- RunUMAP(acm, dims=1:20)
+acm$sub_ccs <- acm$orig.ident
+acm <- FindClusters(acm, resolution=2.5)
+
+acm <- subset(acm, idents=12, invert=T)  #exclude SA node cells
+acm <- NormalizeData(acm)
+
+# filter mouse postnatal pan-CCS markers to only those also expressed in <30% of these aCM
+expr <- get_expr_percentage_per_region(acm, filtered_mp, 'SeuratProject')
+acm_filter <- expr[expr$SeuratProject < 30,]
+filtered_filtered_mp <- intersect(filtered_mp, rownames(acm_filter))
+
+```
+
+# plot pan-CCS dot plots
+```{r}
+
+# fcm <- SetIdent(fcm, WhichCells(fcm, idents=c('SAN head')), 'SA node (head)')
+# fcm <- SetIdent(fcm, WhichCells(fcm, idents=c('SAN tail')), 'SA node (tail)')
+# fcm <- SetIdent(fcm, WhichCells(fcm, idents=c('Compact AVN')), 'Compact AV node')
+# 
+# Idents(fcm) <- factor(Idents(fcm), levels=c('SA node (head)', 'SA node (tail)', 'Compact AV node', 'Lower nodal bundle', 'His bundle', 'Purkinje fibers', 'Tz-SAN', 'aCM', 'vCM', 'ncCM'))
+# 
+# fcm$sub_ccs <- Idents(fcm)
+
+# region names, no gene names
+fig <- DotPlot(
+  fcm,
+  features = rev(c('ID3', 'IGFBP5', 'UNC5B', 'VCAN', 'CACNA2D2', 'MEG3', 'SOBP')), # to make sure hs and mm plots have same gene order, 
+  idents = c(
+    'SA node (head)',
+    'SA node (tail)',
+    'Compact AV node',
+    'Lower nodal bundle',
+    'His bundle',
+    'Purkinje fibers',
+    'Tz-SAN',
+    'aCM',
+    'vCM'
+  ),
+  cols = c('whitesmoke', '#084A25'),
+  col.min = -1,
+  col.max = 1.5,
+  dot.scale = 10,
+  dot.min = -0.10,
+  scale.max = 100
+) &
+  scale_size_area(limits = c(0, 100), max_size = 6, breaks = c(0, 20, 40, 60, 80, 100)) &
+  theme(
+    axis.line = element_blank(),
+    panel.border = element_rect(color = "black", fill = NA, size = 1),
+    axis.title = element_blank(),
+    axis.text.y = element_blank(),
+    axis.text.x = element_text(
+      angle = 90,
+      hjust = 1,
+      vjust = 0.5
+    )
+  ) & NoLegend() & coord_flip()
+
+ggsave('he_panccs_dotplot.tiff', fig, dpi=600, width=7.5, height=6)
+
+# no region names, no gene names
+fig <- DotPlot(
+  fcm,
+  features = rev(c('ID3', 'IGFBP5', 'UNC5B', 'VCAN', 'CACNA2D2', 'MEG3', 'SOBP')), # to make sure hs and mm plots have same gene order, 
+  idents = c(
+    'SA node (head)',
+    'SA node (tail)',
+    'Compact AV node',
+    'Lower nodal bundle',
+    'His bundle',
+    'Purkinje fibers',
+    'Tz-SAN',
+    'aCM',
+    'vCM'
+  ),
+  cols = c('whitesmoke', '#084A25'),
+  col.min = -1,
+  col.max = 1.5,
+  dot.scale = 10,
+  dot.min = -0.10,
+  scale.max = 100
+) &
+  scale_size_area(limits = c(0, 100), max_size = 6, breaks = c(0, 20, 40, 60, 80, 100)) &
+  theme(
+    axis.line = element_blank(),
+    panel.border = element_rect(color = "black", fill = NA, size = 1),
+    axis.title = element_blank(),
+    axis.text.y = element_blank(),
+    axis.text.x = element_blank()
+  ) & NoLegend() & coord_flip()
+
+ggsave('he_panccs_dotplot_noregion.tiff', fig, dpi=600, width=7.5, height=6)
+
+fig <- DotPlot(
+  fcm,
+  features = rev(c('ID3', 'IGFBP5', 'UNC5B', 'VCAN', 'CACNA2D2', 'MEG3', 'SOBP')), # to make sure hs and mm plots have same gene order, 
+  idents = c(
+    'SA node (head)',
+    'SA node (tail)',
+    'Compact AV node',
+    'Lower nodal bundle',
+    'His bundle',
+    'Purkinje fibers',
+    'Tz-SAN',
+    'aCM',
+    'vCM'
+  ),
+  cols = c('whitesmoke', '#084A25'),
+  col.min = -1,
+  col.max = 1.5,
+  dot.scale = 10,
+  dot.min = -0.10,
+  scale.max = 100
+) &
+  scale_size_area(limits = c(0, 100), max_size = 6, breaks = c(0, 20, 40, 60, 80, 100)) &
+  theme(
+    axis.line = element_blank(),
+    panel.border = element_rect(color = "black", fill = NA, size = 1),
+    axis.title = element_blank(),
+    axis.text.y = element_text(size=26, face='italic'),
+    axis.text.x = element_blank()
+  ) & coord_flip()
+
+ggsave('he_panccs_dotplot_genenames.tiff', fig, dpi=600, width=7.5, height=6)
+
+# gcm <- SetIdent(gcm, WhichCells(gcm, idents=c('SAN head')), 'SA node (head)')
+# gcm <- SetIdent(gcm, WhichCells(gcm, idents=c('SAN tail')), 'SA node (tail)')
+# gcm <- SetIdent(gcm, WhichCells(gcm, idents=c('Compact AVN')), 'Compact AV node')
+# gcm <- SetIdent(gcm, WhichCells(gcm, idents=c('Nodal AVR')), 'Nodal AV ring')
+# gcm <- SetIdent(gcm, WhichCells(gcm, idents=c('PF')), 'Purkinje fibers')
+# 
+# Idents(gcm) <- factor(
+#   Idents(gcm),
+#   levels = c(
+#     'SA node (head)',
+#     'SA node (tail)',
+#     'Compact AV node',
+#     'Nodal AV ring',
+#     'His bundle',
+#     'Purkinje fibers',
+#     'Tz-SAN',
+#     'Atrial TZ',
+#     'Tz-AVR',
+#     'Ventricular TZ',
+#     'Tz-PF',
+#     'aCM',
+#     'vCM',
+#     'z1_SAN',
+#     'z2_AVN/His',
+#     'z3_PF'
+#   )
+# )
+# 
+# gcm$sub_ccs <- Idents(gcm)
+
+# region names, no gene names
+fig <- DotPlot(
+  gcm,
+  features = rev(str_to_title(c('ID3', 'IGFBP5', 'UNC5B', 'VCAN', 'CACNA2D2', 'MEG3', 'SOBP'))), # to make sure hs and mm plots have same gene order, 
+  idents = c(
+    'SA node (head)',
+    'SA node (tail)',
+    'Compact AV node',
+    'Nodal AV ring',
+    'His bundle',
+    'Purkinje fibers',
+    'aCM',
+    'vCM',
+    'Tz-PF',
+    'Tz-SAN',
+    'Tz-AVR',
+    'Atrial TZ',
+    'Ventricular TZ'
+  ),
+  cols = c('whitesmoke', '#084A25'),
+  col.min = -1,
+  col.max = 1.5,
+  dot.scale = 10,
+  dot.min = -0.10
+) &
+  scale_size_area(limits = c(0, 100), max_size = 6, breaks = c(0, 20, 40, 60, 80, 100)) &
+  theme(
+    axis.line = element_blank(),
+    panel.border = element_rect(color = "black", fill = NA, size = 1),
+    axis.title = element_blank(),
+    axis.text.y = element_blank(),
+    axis.text.x = element_text(
+      angle = 90,
+      hjust = 1,
+      vjust = 0.5
+    ),
+    axis.ticks.y = element_blank()
+  ) & NoLegend() & coord_flip()
+
+ggsave('me_panccs_dotplot.tiff', fig, dpi=600, width=7.5, height=6)
+
+# no region names, no gene names
+fig <- DotPlot(
+  gcm,
+  features = rev(str_to_title(c('ID3', 'IGFBP5', 'UNC5B', 'VCAN', 'CACNA2D2', 'MEG3', 'SOBP'))), # to make sure hs and mm plots have same gene order, 
+  idents = c(
+    'SA node (head)',
+    'SA node (tail)',
+    'Compact AV node',
+    'Nodal AV ring',
+    'His bundle',
+    'Purkinje fibers',
+    'aCM',
+    'vCM',
+    'Tz-PF',
+    'Tz-SAN',
+    'Tz-AVR',
+    'Atrial TZ',
+    'Ventricular TZ'
+  ),
+  cols = c('whitesmoke', '#084A25'),
+  col.min = -1,
+  col.max = 1.5,
+  dot.scale = 10,
+  dot.min = -0.10
+) &
+  scale_size_area(limits = c(0, 100), max_size = 6, breaks = c(0, 20, 40, 60, 80, 100)) &
+  theme(
+    axis.line = element_blank(),
+    panel.border = element_rect(color = "black", fill = NA, size = 1),
+    axis.title = element_blank(),
+    axis.text.y = element_blank(),
+    axis.text.x = element_blank(),
+    axis.ticks.y = element_blank()
+  ) & NoLegend() & coord_flip()
+
+ggsave('me_panccs_dotplot_noregion.tiff', fig, dpi=600, width=7.5, height=6)
+
+# Idents(kcm) <- factor(Idents(kcm), levels=c('SA node', 'Compact AV node', 'His bundle', 'Purkinje fibers', 'aCM', 'vCM'))
+
+fig <- DotPlot(
+  kcm,
+  features = rev(c('ID3', 'IGFBP5', 'UNC5B', 'VCAN', 'CACNA2D2', 'MEG3', 'SOBP')), # to make sure hs and mm plots have same gene order, 
+  idents = c(
+    'SA node',
+    'Compact AV node',
+    'His bundle',
+    'Purkinje fibers',
+    'aCM',
+    'vCM'
+  ),
+  cols = c('whitesmoke', '#084A25'),
+  col.min = -1,
+  col.max = 1.5,
+  dot.scale = 10,
+  dot.min = -0.10,
+  scale.max=100
+) &
+  scale_size_area(limits = c(0, 100), max_size = 6, breaks = c(0, 20, 40, 60, 80, 100)) &
+  theme(
+    axis.line = element_blank(),
+    panel.border = element_rect(color = "black", fill = NA, size = 1),
+    axis.title = element_blank(),
+    axis.text.y = element_blank(),
+    axis.text.x = element_text(
+      angle = 90,
+      hjust = 1,
+      vjust = 0.5
+    ),
+    axis.ticks.y = element_blank()
+  ) & NoLegend() & coord_flip()
+
+ggsave('ha_panccs_dotplot.tiff', fig, dpi=600, width=7.5, height=6)
+
+fig <- DotPlot(
+  kcm,
+  features = rev(c('ID3', 'IGFBP5', 'UNC5B', 'VCAN', 'CACNA2D2', 'MEG3', 'SOBP')), # to make sure hs and mm plots have same gene order, 
+  idents = c(
+    'SA node',
+    'Compact AV node',
+    'His bundle',
+    'Purkinje fibers',
+    'aCM',
+    'vCM'
+  ),
+  cols = c('whitesmoke', '#084A25'),
+  col.min = -1,
+  col.max = 1.5,
+  dot.scale = 10,
+  dot.min = -0.10,
+  scale.max=100
+) &
+  scale_size_area(limits = c(0, 100), max_size = 6, breaks = c(0, 20, 40, 60, 80, 100)) &
+  theme(
+    axis.line = element_blank(),
+    panel.border = element_rect(color = "black", fill = NA, size = 1),
+    axis.title = element_blank(),
+    axis.text.y = element_blank(),
+    axis.text.x = element_blank(),
+    axis.ticks.y = element_blank()
+  ) & NoLegend() & coord_flip()
+
+ggsave('ha_panccs_dotplot_noregion.tiff', fig, dpi=600, width=7.5, height=6)
+
+# occs <- SetIdent(occs, WhichCells(occs, idents='AV node'), 'Compact AV node')
+# occs <- SetIdent(occs, WhichCells(occs, idents='Contractile cardiomyocytes'), 'vCM')
+# 
+# Idents(occs) <- factor(Idents(occs), levels=c(
+#     'SA node',
+#     'Compact AV node',
+#     'Lower nodal bundle',
+#     'His bundle',
+#     'Proximal bundle branch',
+#     'Distal bundle branch',
+#     'Purkinje fibers',
+#     'Proliferative CCS',
+#     'vCM'
+#   ))
+# 
+# occs$sub_ccs <- Idents(occs)
+
+fig <- DotPlot(
+  occs,
+  features = rev(str_to_title(c('ID3', 'IGFBP5', 'UNC5B', 'VCAN', 'CACNA2D2', 'MEG3', 'SOBP'))), # to make sure hs and mm plots have same gene order, 
+  idents = c(
+    'SA node',
+    'Compact AV node',
+    'Lower nodal bundle',
+    'His bundle',
+    'Proximal bundle branch',
+    'Distal bundle branch',
+    'Purkinje fibers',
+    'vCM'
+  ),
+  cols = c('whitesmoke', '#084A25'),
+  col.min = -1,
+  col.max = 1.5,
+  dot.scale = 10,
+  dot.min = -0.10
+) &
+  scale_size_area(limits = c(0, 100), max_size = 6, breaks = c(0, 20, 40, 60, 80, 100)) &
+  theme(
+    axis.line = element_blank(),
+    panel.border = element_rect(color = "black", fill = NA, size = 1),
+    axis.title = element_blank(),
+    axis.text.y = element_blank(),
+    axis.text.x = element_text(
+      angle = 90,
+      hjust = 1,
+      vjust = 0.5
+    ),
+    axis.ticks.y = element_blank()
+  ) & NoLegend() & coord_flip()
+
+ggsave('mp_panccs_dotplot.tiff', fig, dpi=600, width=7.5, height=6)
+
+fig <- DotPlot(
+  occs,
+  features = rev(str_to_title(c('ID3', 'IGFBP5', 'UNC5B', 'VCAN', 'CACNA2D2', 'MEG3', 'SOBP'))), # to make sure hs and mm plots have same gene order, 
+  idents = c(
+    'SA node',
+    'Compact AV node',
+    'Lower nodal bundle',
+    'His bundle',
+    'Proximal bundle branch',
+    'Distal bundle branch',
+    'Purkinje fibers',
+    'vCM'
+  ),
+  cols = c('whitesmoke', '#084A25'),
+  col.min = -1,
+  col.max = 1.5,
+  dot.scale = 10,
+  dot.min = -0.10
+) &
+  scale_size_area(limits = c(0, 100), max_size = 6, breaks = c(0, 20, 40, 60, 80, 100)) &
+  theme(
+    axis.line = element_blank(),
+    panel.border = element_rect(color = "black", fill = NA, size = 1),
+    axis.title = element_blank(),
+    axis.text.y = element_blank(),
+    axis.text.x = element_blank(),
+    axis.ticks.y = element_blank()
+  ) & NoLegend() & coord_flip()
+
+ggsave('mp_panccs_dotplot_noregion.tiff', fig, dpi=600, width=7.5, height=6)
+
+# acm <- SetIdent(acm, WhichCells(acm, idents='SeuratProject'), 'aCM')
+# acm$acm <- Idents(acm)
+
+fig <- DotPlot(
+  acm,
+  features = rev(str_to_title(c('ID3', 'IGFBP5', 'UNC5B', 'VCAN', 'CACNA2D2', 'MEG3', 'SOBP'))), # to make sure hs and mm plots have same gene order,
+  cols = c('whitesmoke', '#084A25'),
+  col.min = -1,
+  col.max = 1.5,
+  dot.scale = 10,
+  dot.min = -0.10,
+  scale.max = 100
+) &
+  scale_size_area(limits = c(0, 100), max_size = 6.5, breaks = c(0, 20, 40, 60, 80, 100)) &
+  theme(
+    axis.line = element_blank(),
+    panel.border = element_rect(color = "black", fill = NA, size = 1),
+    axis.title = element_blank(),
+    axis.text.y = element_blank(),
+    axis.text.x = element_text(
+      angle = 90,
+      hjust = 1,
+      vjust = 0.5
+    ),
+    axis.ticks.y = element_blank()
+  ) & NoLegend() & coord_flip()
+
+ggsave('acm_panccs_dotplot.tiff', fig, dpi=600, width=1, height=6)
+
+fig <- DotPlot(
+  acm,
+  features = rev(str_to_title(c('ID3', 'IGFBP5', 'UNC5B', 'VCAN', 'CACNA2D2', 'MEG3', 'SOBP'))), # to make sure hs and mm plots have same gene order,
+  cols = c('whitesmoke', '#084A25'),
+  col.min = -1,
+  col.max = 1.5,
+  dot.scale = 10,
+  dot.min = -0.10,
+  scale.max = 100
+) &
+  scale_size_area(limits = c(0, 100), max_size = 6.5, breaks = c(0, 20, 40, 60, 80, 100)) &
+  theme(
+    axis.line = element_blank(),
+    panel.border = element_rect(color = "black", fill = NA, size = 1),
+    axis.title = element_blank(),
+    axis.text.y = element_blank(),
+    axis.text.x = element_blank(),
+    axis.ticks.y = element_blank()
+  ) & NoLegend() & coord_flip()
+
+ggsave('acm_panccs_dotplot_noregion.tiff', fig, dpi=600, width=1, height=6)
+
+
+```
+
+# embryonic zonated markers
+```{r}
+
+Idents(gccs) <- gccs$sub_ccs_onesan
+gccs <- SetIdent(gccs, WhichCells(gccs, idents=c('SAN', 'Compact AVN')), 'nodes')
+gccs <- SetIdent(gccs, WhichCells(gccs, idents=c('His bundle', 'PF')), 'vcs')
+gccs$chamber <- Idents(gccs)
+
+mme_markers_vcs <- FindMarkers(gccs, ident.1='vcs', ident.2='nodes', min.pct=0.1, only.pos=T)
+mme_markers_nodes <- FindMarkers(gccs, ident.1='nodes', ident.2='vcs', min.pct=0.1, only.pos=T)
+
+mme_markers_vcs_filtered <- mme_markers_vcs %>%
+  filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1>=0.1) # for FC > 1.5
+
+mme_markers_nodes_filtered <- mme_markers_nodes %>%
+  filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1>=0.1) # for FC > 1.5
+
+mme_vcs <- rownames(mme_markers_vcs_filtered)
+mme_vcs <- intersect(mme_vcs, c(rownames(mark_his_mme), rownames(mark_pf_mme)))
+
+mme_nodes <- rownames(mme_markers_nodes_filtered)
+mme_nodes <- intersect(mme_nodes, c(rownames(mark_san_mme), rownames(mark_avn_mme)))
+
+Idents(fccs) <- fccs$sub_ccs_onesan
+fccs <- SetIdent(fccs, WhichCells(fccs, idents=c('SAN', 'Compact AVN')), 'nodes')
+fccs <- SetIdent(fccs, WhichCells(fccs, idents=c('His bundle', 'Purkinje fibers')), 'vcs')
+fccs$chamber <- Idents(fccs)
+
+hse_markers_vcs <- FindMarkers(fccs, ident.1='vcs', ident.2='nodes', min.pct=0.1, only.pos=T)
+hse_markers_nodes <- FindMarkers(fccs, ident.1='nodes', ident.2='vcs', min.pct=0.1, only.pos=T)
+
+hse_markers_vcs_filtered <- hse_markers_vcs %>%
+  filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1>=0.1) # for FC > 1.5
+
+hse_markers_nodes_filtered <- hse_markers_nodes %>%
+  filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1>=0.1) # for FC > 1.5
+
+hse_vcs <- rownames(hse_markers_vcs_filtered)
+hse_vcs <- intersect(hse_vcs, c(rownames(mark_his_hse), rownames(mark_pf_hse)))
+
+hse_nodes <- rownames(hse_markers_nodes_filtered)
+hse_nodes <- intersect(hse_nodes, c(rownames(mark_san_hse), rownames(mark_avn_hse)))
+
+mme_to_hse_vcs <- ortholog_df[ortholog_df$mm %in% mme_vcs,]
+mme_to_hse_nodes <- ortholog_df[ortholog_df$mm %in% mme_nodes,]
+
+shared_vcs_e <- intersect(hse_vcs, mme_to_hse_vcs$hs)
+shared_nodes_e <- intersect(hse_nodes, mme_to_hse_nodes$hs)
+
+```
+
+# adult zonated markers
+```{r}
+
+Idents(occs_no_cm) <- occs_no_cm$sub_all_onehis
+occs_no_cm <- SetIdent(occs_no_cm, WhichCells(occs_no_cm, idents=c('SA node', 'Compact AV node')), 'nodes')
+occs_no_cm <- SetIdent(occs_no_cm, WhichCells(occs_no_cm, idents=c('His bundle', 'Purkinje fibers')), 'vcs')
+occs_no_cm$chamber <- Idents(occs_no_cm)
+
+mmp_markers_vcs <- FindMarkers(occs_no_cm, ident.1='vcs', ident.2='nodes', min.pct=0.1, only.pos=T)
+mmp_markers_nodes <- FindMarkers(occs_no_cm, ident.1='nodes', ident.2='vcs', min.pct=0.1, only.pos=T)
+
+mmp_markers_vcs_filtered <- mmp_markers_vcs %>%
+  filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1>=0.1) # for FC > 1.5
+
+mmp_markers_nodes_filtered <- mmp_markers_nodes %>%
+  filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1>=0.1) # for FC > 1.5
+
+mmp_vcs <- rownames(mmp_markers_vcs_filtered)
+mmp_vcs <- intersect(mmp_vcs, c(rownames(mark_his_mmp), rownames(mark_pf_mmp)))
+
+mmp_nodes <- rownames(mmp_markers_nodes_filtered)
+mmp_nodes <- intersect(mmp_nodes, c(rownames(mark_san_mmp), rownames(mark_avn_mmp)))
+
+kccs <- SetIdent(kccs, WhichCells(kccs, idents=c('SA node', 'Compact AV node')), 'nodes')
+kccs <- SetIdent(kccs, WhichCells(kccs, idents=c('His bundle', 'Purkinje fibers')), 'vcs')
+kccs$chamber <- Idents(kccs)
+
+hsa_markers_vcs <- FindMarkers(kccs, ident.1='vcs', ident.2='nodes', min.pct=0.1, only.pos=T)
+hsa_markers_nodes <- FindMarkers(kccs, ident.1='nodes', ident.2='vcs', min.pct=0.1, only.pos=T)
+
+hsa_markers_vcs_filtered <- hsa_markers_vcs %>%
+  filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1>=0.1) # for FC > 1.5
+
+hsa_markers_nodes_filtered <- hsa_markers_nodes %>%
+  filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1>=0.1) # for FC > 1.5
+
+hsa_vcs <- hsa_markers_chamber_filtered[hsa_markers_chamber_filtered$cluster == 'vcs',]
+hsa_vcs <- hsa_vcs$gene
+hsa_vcs <- intersect(hsa_vcs, c(rownames(mark_his_hsa), rownames(mark_pf_hsa)))
+
+hsa_nodes <- hsa_markers_chamber_filtered[hsa_markers_chamber_filtered$cluster == 'nodes',]
+hsa_nodes <- hsa_nodes$gene
+hsa_nodes <- intersect(hsa_nodes, c(rownames(mark_san_hsa), rownames(mark_avn_hsa)))
+
+mmp_to_hsa_vcs <- ortholog_df[ortholog_df$mm %in% mmp_vcs,]
+mmp_to_hsa_nodes <- ortholog_df[ortholog_df$mm %in% mmp_nodes,]
+
+shared_vcs_a <- intersect(hsa_vcs, mmp_to_hsa_vcs$hs)
+shared_nodes_a <- intersect(hsa_nodes, mmp_to_hsa_nodes$hs)
+
+```
+
+# plot embryonic dot plots w/ shared zonal markers
+```{r}
+
+Idents(fcm) <- factor(Idents(fcm), levels=c('ncCM', 'vCM', 'aCM', 'Purkinje fibers', 'His bundle', 'Lower nodal bundle', 'Compact AVN', 'Tz-SAN', 'SAN tail', 'SAN head'))
+
+# plot without region names
+fig <- DotPlot(
+  fcm,
+  features = c(ortholog_df[ortholog_df$hs %in% shared_nodes_e,]$hs, ortholog_df[ortholog_df$hs %in% shared_vcs_e,]$hs), # to make sure hs and mm plots have same gene order, 
+  idents = c(
+    'SAN head',
+    'SAN tail',
+    'Tz-SAN',
+    'Compact AVN',
+    'His bundle',
+    'Purkinje fibers',
+    'aCM',
+    'vCM'
+  ),
+  cols = c('whitesmoke', '#280972'),
+  col.min = -1,
+  col.max = 1.5,
+  dot.scale = 10,
+  dot.min = -0.10
+) &
+  scale_size(breaks = c(0, 20, 40, 60, 80, 100)) &
+  theme(
+    axis.line = element_blank(),
+    panel.border = element_rect(color = "black", fill = NA, size = 1),
+    axis.title = element_blank(),
+    axis.text.y = element_blank(),
+    axis.text.x = element_text(
+      angle = 90,
+      hjust = 0.5,
+      vjust = 0.5,
+      face='italic',
+      size=16
+    )
+  ) & NoLegend()
+
+ggsave('zone_markers_human_embryo_no_region_names.tiff', width=17, height=7, dpi=600)
+
+# plot without region & gene names
+fig <- DotPlot(
+  fcm,
+  features = c(ortholog_df[ortholog_df$hs %in% shared_nodes_e,]$hs, ortholog_df[ortholog_df$hs %in% shared_vcs_e,]$hs), # to make sure hs and mm plots have same gene order, 
+  idents = c(
+    'SAN head',
+    'SAN tail',
+    'Tz-SAN',
+    'Compact AVN',
+    'His bundle',
+    'Purkinje fibers',
+    'aCM',
+    'vCM'
+  ),
+  cols = c('whitesmoke', '#280972'),
+  col.min = -1,
+  col.max = 1.5,
+  dot.scale = 10,
+  dot.min = -0.10
+) &
+  scale_size(breaks = c(0, 20, 40, 60, 80, 100)) &
+  theme(
+    axis.line = element_blank(),
+    panel.border = element_rect(color = "black", fill = NA, size = 1),
+    axis.title = element_blank(),
+    axis.text.y = element_blank(),
+    axis.text.x = element_blank()
+  ) & NoLegend()
+
+ggsave('zone_markers_human_embryo_no_region_gene_names.tiff', width=17, height=7, dpi=600)
+
+
+Idents(gcm) <- factor(
+  Idents(gcm),
+  levels = rev(c(
+    'SAN head',
+    'SAN tail',
+    'Tz-SAN',
+    'Compact AVN',
+    'Atrial TZ',
+    'Nodal AVR',
+    'Tz-AVR',
+    'Ventricular TZ',
+    'His bundle',
+    'PF',
+    'Tz-PF',
+    'aCM',
+    'vCM',
+    'z1_SAN',
+    'z2_AVN/His',
+    'z3_PF'
+  ))
+)
+
+# plot with x-axis ticks on top & no region/gene names
+
+fig <- DotPlot(
+  gcm,
+  features = c(ortholog_df[ortholog_df$hs %in% shared_nodes_e,]$mm, ortholog_df[ortholog_df$hs %in% shared_vcs_e,]$mm),
+  idents = c(
+    'SAN head',
+    'SAN tail',
+    'Tz-SAN',
+    'Compact AVN',
+    'His bundle',
+    'PF',
+    'aCM',
+    'vCM'
+  ),
+  cols = c('whitesmoke', '#280972'),
+  col.min = -1,
+  col.max = 1.5,
+  dot.scale = 10,
+  dot.min = -0.10
+) &
+  scale_size(breaks = c(0, 20, 40, 60, 80, 100)) &
+  scale_x_discrete(position = "top") &
+  theme(
+    axis.line = element_blank(),
+    panel.border = element_rect(color = "black", fill = NA, size = 1),
+    axis.title = element_blank(),
+    axis.text.y = element_blank(),
+    axis.text.x = element_blank()
+  ) & NoLegend()
+
+ggsave('zone_markers_mouse_embryo_no_region_gene_names.tiff', width=17, height=7, dpi=600)
+
+# with legend
+
+fig <- DotPlot(
+  gcm,
+  features = c(ortholog_df[ortholog_df$hs %in% shared_nodes_e,]$mm, ortholog_df[ortholog_df$hs %in% shared_vcs_e,]$mm),
+  idents = c(
+    'SAN head',
+    'SAN tail',
+    'Tz-SAN',
+    'Compact AVN',
+    'His bundle',
+    'PF',
+    'aCM',
+    'vCM'
+  ),
+  cols = c('whitesmoke', '#280972'),
+  col.min = -1,
+  col.max = 1.5,
+  dot.scale = 10,
+  dot.min = -0.10
+) &
+  scale_size(breaks = c(0, 20, 40, 60, 80, 100)) &
+  scale_x_discrete(position = "top") &
+  theme(
+    axis.line = element_blank(),
+    panel.border = element_rect(color = "black", fill = NA, size = 1),
+    axis.title = element_blank(),
+    axis.text.y = element_blank(),
+    axis.text.x = element_blank(),
+    legend.title=element_blank(),
+    legend.text=element_text(size=16)
+  )
+
+ggsave('zone_markers_mouse_embryo_no_region_gene_names_legend.tiff', width=17, height=7, dpi=600)
+
+```
+
+# plot adult/postnatal dot plots w/ shared zonal markers
+```{r}
+
+Idents(kcm) <- factor(Idents(kcm), levels=c('vCM', 'aCM', 'Purkinje fibers', 'His bundle', 'Compact AV node', 'SA node'))
+
+# plot without region names
+fig <- DotPlot(
+  kcm,
+  features = c(ortholog_df[ortholog_df$hs %in% shared_nodes_a,]$hs, ortholog_df[ortholog_df$hs %in% shared_vcs_a,]$hs), # to make sure hs and mm plots have same gene order
+  cols = c('whitesmoke', '#280972'),
+  col.min = -1,
+  col.max = 1.5,
+  dot.scale = 10,
+  dot.min = -0.10
+) &
+  scale_size(breaks = c(0, 20, 40, 60, 80, 100)) &
+  theme(
+    axis.line = element_blank(),
+    panel.border = element_rect(color = "black", fill = NA, size = 1),
+    axis.title = element_blank(),
+    axis.text.y = element_blank(),
+    axis.text.x = element_text(
+      angle = 90,
+      hjust = 0.5,
+      vjust = 0.5,
+      face='italic',
+      size=16
+    )
+  ) & NoLegend()
+
+ggsave('zone_markers_human_adult_no_region_names.tiff', width=5.55, height=7, dpi=600)
+
+# plot without region and gene names
+fig <- DotPlot(
+  kcm,
+  features = c(ortholog_df[ortholog_df$hs %in% shared_nodes_a,]$hs, ortholog_df[ortholog_df$hs %in% shared_vcs_a,]$hs), # to make sure hs and mm plots have same gene order
+  cols = c('whitesmoke', '#280972'),
+  col.min = -1,
+  col.max = 1.5,
+  dot.scale = 10,
+  dot.min = -0.10
+) &
+  scale_size(breaks = c(0, 20, 40, 60, 80, 100)) &
+  theme(
+    axis.line = element_blank(),
+    panel.border = element_rect(color = "black", fill = NA, size = 1),
+    axis.title = element_blank(),
+    axis.text.y = element_blank(),
+    axis.text.x = element_blank()
+  ) & NoLegend()
+
+ggsave('zone_markers_human_adult_no_region_gene_names.tiff', width=5.55, height=7, dpi=600)
+
+
+Idents(occs) <- factor(
+  Idents(occs),
+  levels = c(
+    'Contractile cardiomyocytes',
+    'Proliferative CCS',
+    'Purkinje fibers',
+    'Distal bundle branch',
+    'Proximal bundle branch',
+    'His bundle',
+    'Lower nodal bundle',
+    'Compact AV node',
+    'SA node'
+  )
+)
+
+# plot with x-axis ticks on top & no region/gene names
+
+fig <- DotPlot(
+  occs,
+  features = c(ortholog_df[ortholog_df$hs %in% shared_nodes_a,]$mm, ortholog_df[ortholog_df$hs %in% shared_vcs_a,]$mm),
+  idents = c(
+    'SA node',
+    'Compact AV node',
+    'His bundle',
+    'Purkinje fibers',
+    'Contractile cardiomyocytes'
+  ),
+  cols = c('whitesmoke', '#280972'),
+  col.min = -1,
+  col.max = 1.5,
+  dot.scale = 10,
+  dot.min = -0.10
+) &
+  scale_size(breaks = c(0, 20, 40, 60, 80, 100)) &
+  scale_x_discrete(position = "top") &
+  theme(
+    axis.line = element_blank(),
+    panel.border = element_rect(color = "black", fill = NA, size = 1),
+    axis.title = element_blank(),
+    axis.text.y = element_blank(),
+    axis.text.x = element_blank()
+  ) & NoLegend()
+
+ggsave('zone_markers_mouse_postnatal_no_region_gene_names.tiff', width=5.55, height=7, dpi=600)
+
+# with legend
+
+fig <- DotPlot(
+  occs,
+  features = c(ortholog_df[ortholog_df$hs %in% shared_nodes_a,]$mm, ortholog_df[ortholog_df$hs %in% shared_vcs_a,]$mm),
+  idents = c(
+    'SA node',
+    'Compact AV node',
+    'His bundle',
+    'Purkinje fibers',
+    'Contractile cardiomyocytes'
+  ),
+  cols = c('whitesmoke', '#280972'),
+  col.min = -1,
+  col.max = 1.5,
+  dot.scale = 10,
+  dot.min = -0.10
+) &
+  scale_size(breaks = c(0, 20, 40, 60, 80, 100)) &
+  scale_x_discrete(position = "top") &
+  theme(
+    axis.line = element_blank(),
+    panel.border = element_rect(color = "black", fill = NA, size = 1),
+    axis.title = element_blank(),
+    axis.text.y = element_blank(),
+    axis.text.x = element_blank(),
+    legend.title=element_blank(),
+    legend.text = element_text(size=16)
+  )
+
+ggsave('zone_markers_mouse_postnatal_no_region_gene_names_legend.tiff', width=5.55, height=7, dpi=600)
+
+```
+

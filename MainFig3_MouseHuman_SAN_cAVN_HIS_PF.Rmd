@@ -1,0 +1,1201 @@
+---
+title: "MouseHuman_SAN_cAVN_HIS_PF"
+output: html_document
+date: "2024-09-12"
+---
+
+# load libraries and data
+```{r}
+
+library(Seurat)
+library(tidyverse)
+
+# ccs only objects
+fccs <- readRDS('farah_ccs_20240910.rds') # Farah et al, Nature 2024 (human embryonic)
+gccs <- readRDS('goodyer_ccs_20240910.rds') # Goodyer et al, Circ Res 2019 (mouse embryonic)
+kccs <- readRDS('kanemaru_ccs_20240910.rds') # Kanemaru et al, Nature 2023 (human adult)
+occs <- readRDS('20231212_ccs_object.rds') # Oh et al, Nat Commun 2024 (mouse postnatal)
+
+# all cm objects
+
+fcm <- readRDS('20240911_farah_cardiomyocytes_annotated.rds')
+gcm <- readRDS('goodyer_cm_20240910.rds')
+kcm <- readRDS('kanemaru_cm_qc.rds')
+
+```
+
+# developing CCS shared markers
+```{r}
+
+mark_san_hse <- FindMarkers(fcm_ra, ident.1=c('SAN head', 'SAN tail'), ident.2='aCM', only.pos=T, min.pct=0.1) # compare with right atrial aCM only
+
+Idents(fcm) <- fcm$sub_ccs
+mark_avn_hse <- FindMarkers(fcm, ident.1='Compact AVN', ident.2='aCM', only.pos=T, min.pct=0.1)
+mark_lnb_hse <- FindMarkers(fcm, ident.1='Lower nodal bundle', ident.2='aCM', only.pos=T, min.pct=0.1)
+
+Idents(fcm) <- fcm$Region
+fcm_ivs <- subset(fcm, idents='IVS')
+Idents(fcm_ivs) <- fcm_ivs$sub_ccs
+fcm_ivs <- NormalizeData(fcm_ivs)
+mark_his_hse <- FindMarkers(fcm_ivs, ident.1='His bundle', ident.2='vCM', only.pos=T, min.pct=0.1) # compare with interventricular septal vCM
+
+Idents(fcm) <- fcm$sub_ccs
+mark_pf_hse <- FindMarkers(fcm, ident.1='Purkinje fibers', ident.2='vCM', only.pos=T, min.pct=0.1)
+
+mark_san_hse <- mark_san_hse %>% filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1 >= 0.1) # for FC > 1.5
+mark_avn_hse <- mark_avn_hse %>% filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1 >= 0.1) 
+mark_lnb_hse <- mark_lnb_hse %>% filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1 >= 0.1) 
+mark_his_hse <- mark_his_hse %>% filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1 >= 0.1)
+mark_pf_hse <- mark_pf_hse %>% filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1 >= 0.1)
+
+#tsan, tavn, and tpf are the objects for microdissected zones (SAN, AVN/HIS and LPF/RPF)
+
+tsan <- SetIdent(tsan, WhichCells(gccs, idents=c('SAN head', 'SAN tail')), 'SAN')
+
+tavn <- SetIdent(tavn, WhichCells(gccs, idents='Compact AVN'), 'Compact AVN')
+tavn <- SetIdent(tavn, WhichCells(gccs, idents='His bundle'), 'His bundle')
+
+tpf <- SetIdent(tpf, WhichCells(gccs, idents='PF'), 'PF')
+
+san_avn <- merge(tsan, tavn)
+san_avn <- NormalizeData(san_avn)
+
+mark_san_mme <- FindMarkers(tsan, ident.1='SAN', ident.2=c('z1_Cardiomyocytes1', 'z1_Cardiomyocytes2', 'z1_Cardiomyocytes3', 'z1_Cardiomyocytes4', 'z1_Cardiomyocytes5', 'z1_Cardiomyocytes6'), only.pos=T, min.pct=0.1)
+mark_avn_mme <- FindMarkers(san_avn, ident.1='Compact AVN', ident.2=c('z1_Cardiomyocytes1', 'z1_Cardiomyocytes2', 'z1_Cardiomyocytes3', 'z1_Cardiomyocytes4', 'z1_Cardiomyocytes5', 'z1_Cardiomyocytes6'), only.pos=T, min.pct=0.1)
+mark_his_mme <- FindMarkers(tavn, ident.1='His bundle', ident.2=c('z2_Cardiomyocytes1', 'z2_Cardiomyocytes2', 'z2_Cardiomyocytes3', 'z2_Cardiomyocytes4', 'z2_Cardiomyocytes5'), only.pos=T, min.pct=0.1)
+mark_pf_mme <- FindMarkers(tpf, ident.1='PF', ident.2=c('z3_Cardiomyocytes1', 'z3_Cardiomyocytes2', 'z3_Cardiomyocytes3', 'z3_Cardiomyocytes4', 'z3_Cardiomyocytes5', 'z3_Cardiomyocytes6', 'z3_Cardiomyocytes7', 'z3_Cardiomyocytes8'), only.pos=T, min.pct=0.1)
+
+mark_san_mme <- mark_san_mme %>% filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1 >= 0.1)
+mark_avn_mme <- mark_avn_mme %>% filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1 >= 0.1)
+mark_his_mme <- mark_his_mme %>% filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1 >= 0.1)
+mark_pf_mme <- mark_pf_mme %>% filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1 >= 0.1)
+
+gccs <- SetIdent(gccs, WhichCells(gccs, idents=c('SAN head', 'SAN tail')), 'SAN')
+gccs$sub_ccs_onesan <- Idents(gccs)
+
+mme_markers_regional <- FindAllMarkers(gccs, logfc.threshold = 0, return.thresh = Inf)
+
+mme_markers_regional_filtered <- mme_markers_regional %>%
+  filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1>=0.1) # for FC > 1.5
+
+mme_san <- mme_markers_regional_filtered[mme_markers_regional_filtered$cluster == 'SAN',]
+mme_san <- mme_san$gene
+mme_san <- intersect(mme_san, rownames(mark_san_mme))
+
+mme_avn <- mme_markers_regional_filtered[mme_markers_regional_filtered$cluster == 'Compact AVN',]
+mme_avn <- mme_avn$gene
+mme_avn <- intersect(mme_avn, rownames(mark_avn_mme))
+
+mme_his <- mme_markers_regional_filtered[mme_markers_regional_filtered$cluster == 'His bundle',]
+mme_his <- mme_his$gene
+mme_his <- intersect(mme_his, rownames(mark_his_mme))
+
+mme_pf <- mme_markers_regional_filtered[mme_markers_regional_filtered$cluster == 'PF',]
+mme_pf <- mme_pf$gene
+mme_pf <- intersect(mme_pf, rownames(mark_pf_mme))
+
+fccs <- SetIdent(fccs, WhichCells(fccs, idents=c('SAN head', 'SAN tail')), 'SAN')
+fccs$sub_ccs_onesan <- Idents(fccs)
+
+hse_markers_regional <- FindAllMarkers(fccs, logfc.threshold = 0, return.thresh = Inf)
+
+hse_markers_regional_filtered <- hse_markers_regional %>%
+  filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1>=0.1) # for FC > 1.5
+
+hse_san <- hse_markers_regional_filtered[hse_markers_regional_filtered$cluster == 'SAN',]
+hse_san <- hse_san$gene
+hse_san <- intersect(hse_san, rownames(mark_san_hse)) # only include ccs-specific (diff exp compared to contractile cardiomyocytes)
+
+hse_avn <- hse_markers_regional_filtered[hse_markers_regional_filtered$cluster == 'Compact AVN',]
+hse_avn <- hse_avn$gene
+hse_avn <- intersect(hse_avn, rownames(mark_avn_hse))
+
+hse_lnb <- hse_markers_regional_filtered[hse_markers_regional_filtered$cluster == 'Lower nodal bundle',]
+hse_lnb <- hse_lnb$gene
+hse_lnb <- intersect(hse_lnb, rownames(mark_lnb_hse))
+
+hse_his <- hse_markers_regional_filtered[hse_markers_regional_filtered$cluster == 'His bundle',]
+hse_his <- hse_his$gene
+hse_his <- intersect(hse_his, rownames(mark_his_hse))
+
+hse_pf <- hse_markers_regional_filtered[hse_markers_regional_filtered$cluster == 'Purkinje fibers',]
+hse_pf <- hse_pf$gene
+hse_pf <- intersect(hse_pf, rownames(mark_pf_hse))
+
+mm_to_hs_san_e <- ortholog_df[ortholog_df$mm %in% mme_san,]
+mm_to_hs_avn_e <- ortholog_df[ortholog_df$mm %in% mme_avn,]
+mm_to_hs_his_e <- ortholog_df[ortholog_df$mm %in% mme_his,]
+mm_to_hs_pf_e <- ortholog_df[ortholog_df$mm %in% mme_pf,]
+
+shared_san_e <- intersect(hse_san, mm_to_hs_san_e$hs)
+shared_avn_e <- intersect(hse_avn, mm_to_hs_avn_e$hs)
+shared_his_e <- intersect(hse_his, mm_to_hs_his_e$hs)
+shared_pf_e <- intersect(hse_pf, mm_to_hs_pf_e$hs)
+
+
+```
+
+# species-specific developing
+```{r}
+
+hs_to_mm_san_e <- ortholog_df[ortholog_df$hs %in% hse_san,]
+hs_to_mm_avn_e <- ortholog_df[ortholog_df$hs %in% hse_avn,]
+hs_to_mm_his_e <- ortholog_df[ortholog_df$hs %in% hse_his,]
+hs_to_mm_pf_e <- ortholog_df[ortholog_df$hs %in% hse_pf,]
+
+library(scCustomize)
+
+# percent expression of mouse regional markers in human ccs
+percent_hs_san_e <- Percent_Expressing(fccs, mm_to_hs_san_e$hs, group_by='sub_ccs_onesan')
+percent_hs_avn_e <- Percent_Expressing(fccs, mm_to_hs_avn_e$hs, group_by='sub_ccs_onesan')
+percent_hs_his_e <- Percent_Expressing(fccs, mm_to_hs_his_e$hs, group_by='sub_ccs_onesan')
+percent_hs_pf_e <- Percent_Expressing(fccs, mm_to_hs_pf_e$hs, group_by='sub_ccs_onesan')
+
+# percent expression of human regional markers in mouse ccs
+percent_mm_san_e <- Percent_Expressing(gccs, hs_to_mm_san_e$mm, group_by='sub_ccs_onesan')
+percent_mm_avn_e <- Percent_Expressing(gccs, hs_to_mm_avn_e$mm, group_by='sub_ccs_onesan')
+percent_mm_his_e <- Percent_Expressing(gccs, hs_to_mm_his_e$mm, group_by='sub_ccs_onesan')
+percent_mm_pf_e <- Percent_Expressing(gccs, hs_to_mm_pf_e$mm, group_by='sub_ccs_onesan')
+
+'%!in%' <- function(x,y)!('%in%'(x,y))
+
+# human specific genes: <10% expression in respective mouse region, or not detected at all
+san_human_specific_e <-
+  c(rownames(percent_mm_san_e[percent_mm_san_e$SAN < 5, ]), hs_to_mm_san_e$mm[hs_to_mm_san_e$mm %!in% rownames(gccs)])
+avn_human_specific_e <-
+  rownames(percent_mm_avn_e[percent_mm_avn_e$Compact.AVN < 5, ], hs_to_mm_avn_e$mm[hs_to_mm_avn_e$mm %!in% rownames(gccs)])
+his_human_specific_e <-
+  rownames(percent_mm_his_e[percent_mm_his_e$His.bundle < 5, ], hs_to_mm_his_e$mm[hs_to_mm_his_e$mm %!in% rownames(gccs)])
+pf_human_specific_e <-
+  rownames(percent_mm_pf_e[percent_mm_pf_e$PF < 5, ], hs_to_mm_pf_e$mm[hs_to_mm_pf_e$mm %!in% rownames(gccs)])
+
+san_mouse_specific_e <-
+  c(rownames(percent_hs_san_e[percent_hs_san_e$SAN < 5, ]), mm_to_hs_san_e$hs[mm_to_hs_san_e$hs %!in% rownames(fccs)])
+avn_mouse_specific_e <-
+  rownames(percent_hs_avn_e[percent_hs_avn_e$Compact.AVN < 5, ], mm_to_hs_avn_e$hs[mm_to_hs_avn_e$hs %!in% rownames(fccs)])
+his_mouse_specific_e <-
+  rownames(percent_hs_his_e[percent_hs_his_e$His.bundle < 5, ], mm_to_hs_his_e$hs[mm_to_hs_his_e$hs %!in% rownames(fccs)])
+pf_mouse_specific_e <-
+  rownames(percent_hs_pf_e[percent_hs_pf_e$Purkinje.fibers < 5, ], mm_to_hs_pf_e$hs[mm_to_hs_pf_e$hs %!in% rownames(fccs)])
+
+# convert all gene names to human, for use in heatmap labeling
+
+san_human_specific_e <- ortholog_df[ortholog_df$mm %in% san_human_specific_e,]$hs
+avn_human_specific_e <- ortholog_df[ortholog_df$mm %in% avn_human_specific_e,]$hs
+his_human_specific_e <- ortholog_df[ortholog_df$mm %in% his_human_specific_e,]$hs
+pf_human_specific_e <- ortholog_df[ortholog_df$mm %in% pf_human_specific_e,]$hs
+
+```
+
+
+# postnatal/adult shared markers
+```{r}
+
+Idents(kcm) <- kcm$region
+san_kcm <- subset(kcm, idents='SAN')
+avn_kcm <- subset(kcm, idents='AVN')
+ax_kcm <- subset(kcm, idents='AX')
+Idents(san_kcm) <- san_kcm$cell_type
+Idents(avn_kcm) <- avn_kcm$cell_type
+Idents(ax_kcm) <- ax_kcm$cell_type
+san_kcm <- subset(san_kcm, idents='Atrial Cardiomyocyte')
+avn_kcm <- subset(avn_kcm, idents='Atrial Cardiomyocyte')
+ax_kcm <- subset(ax_kcm, idents='Ventricular Cardiomyocyte')
+
+san_kcm <- NormalizeData(san_kcm)
+san_kcm <- FindVariableFeatures(san_kcm)
+san_kcm <- ScaleData(san_kcm, vars.to.regress='donor')
+san_kcm <- RunPCA(san_kcm)
+san_kcm <- FindNeighbors(san_kcm, dims=1:20)
+san_kcm <- RunUMAP(san_kcm, dims=1:20)
+
+avn_kcm <- NormalizeData(avn_kcm)
+avn_kcm <- FindVariableFeatures(avn_kcm)
+avn_kcm <- ScaleData(avn_kcm, vars.to.regress='donor')
+avn_kcm <- RunPCA(avn_kcm)
+avn_kcm <- FindNeighbors(avn_kcm, dims=1:20)
+avn_kcm <- RunUMAP(avn_kcm, dims=1:20)
+
+ax_kcm <- NormalizeData(ax_kcm)
+ax_kcm <- FindVariableFeatures(ax_kcm)
+ax_kcm <- ScaleData(ax_kcm, vars.to.regress='donor')
+ax_kcm <- RunPCA(ax_kcm)
+ax_kcm <- FindNeighbors(ax_kcm, dims=1:20)
+ax_kcm <- RunUMAP(ax_kcm, dims=1:20)
+
+Idents(san_kcm) <- san_kcm$cell_state
+Idents(avn_kcm) <- avn_kcm$cell_state
+Idents(ax_kcm) <- ax_kcm$cell_state
+
+mark_san_hsa <- FindMarkers(san_kcm, ident.1='SAN_P_cell', ident.2=c('aCM1','aCM2','aCM3', 'aCM4'), only.pos=T, min.pct=0.1)
+mark_avn_hsa <- FindMarkers(avn_kcm, ident.1='AVN_P_cell', ident.2=c('aCM1','aCM2','aCM3', 'aCM4'), only.pos=T, min.pct=0.1)
+mark_his_hsa <- FindMarkers(avn_kcm, ident.1='AVN_bundle_cell', ident.2=c('aCM1','aCM2','aCM3', 'aCM4'), only.pos=T, min.pct=0.1)
+mark_pf_hsa <- FindMarkers(ax_kcm, ident.1='Purkinje_cell', ident.2=c('vCM1','vCM2','vCM3_stressed', 'vCM4', 'vCM5'), only.pos=T, min.pct=0.1)
+
+mark_san_hsa <- mark_san_hsa %>% filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1 >= 0.1) # for FC > 1.5
+mark_avn_hsa <- mark_avn_hsa %>% filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1 >= 0.1) 
+mark_his_hsa <- mark_his_hsa %>% filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1 >= 0.1)
+mark_pf_hsa <- mark_pf_hsa %>% filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1 >= 0.1)
+
+mark_san_mmp <- FindMarkers(occs, ident.1='SA node', ident.2='vCM', only.pos=T)
+mark_avn_mmp <- FindMarkers(occs, ident.1='Compact AV node', ident.2='vCM', only.pos=T)
+mark_lnb_mmp <- FindMarkers(occs, ident.1='Lower nodal bundle', ident.2='vCM', only.pos=T)
+mark_his_mmp <- FindMarkers(occs, ident.1='His bundle', ident.2='vCM', only.pos=T)
+mark_pf_mmp <- FindMarkers(occs, ident.1='Purkinje fibers', ident.2='vCM', only.pos=T)
+
+mark_san_mmp <- mark_san_mmp %>% filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1 >= 0.1)
+mark_avn_mmp <- mark_avn_mmp %>% filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1 >= 0.1)
+mark_lnb_mmp <- mark_lnb_mmp %>% filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1 >= 0.1)
+mark_his_mmp <- mark_his_mmp %>% filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1 >= 0.1)
+mark_pf_mmp <- mark_pf_mmp %>% filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1 >= 0.1)
+
+# regional markers
+
+occs_no_cm <- subset(occs, idents='vCM', invert=T)
+occs_no_cm <- NormalizeData(occs_no_cm)
+
+mmp_markers_regional <- FindAllMarkers(occs_no_cm, logfc.threshold = 0, return.thresh=Inf)
+
+mmp_markers_regional_filtered <- mmp_markers_regional %>%
+  filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1>=0.1) # for FC > 1.5
+
+mmp_san <- mmp_markers_regional_filtered[mmp_markers_regional_filtered$cluster == 'SA node',]
+mmp_san <- mmp_san$gene
+mmp_san <- intersect(mmp_san, rownames(mark_san_mmp))
+
+mmp_avn <- mmp_markers_regional_filtered[mmp_markers_regional_filtered$cluster == 'Compact AV node',]
+mmp_avn <- mmp_avn$gene
+mmp_avn <- intersect(mmp_avn, rownames(mark_avn_mmp))
+
+mmp_lnb <- mmp_markers_regional_filtered[mmp_markers_regional_filtered$cluster == 'Lower nodal bundle',]
+mmp_lnb <- mmp_lnb$gene
+mmp_lnb <- intersect(mmp_lnb, rownames(mark_lnb_mmp))
+
+mmp_his <- mmp_markers_regional_filtered[mmp_markers_regional_filtered$cluster == 'His bundle',]
+mmp_his <- mmp_his$gene
+mmp_his <- intersect(mmp_his, rownames(mark_his_mmp))
+
+mmp_pf <- mmp_markers_regional_filtered[mmp_markers_regional_filtered$cluster == 'Purkinje fibers',]
+mmp_pf <- mmp_pf$gene
+mmp_pf <- intersect(mmp_pf, rownames(mark_pf_mmp))
+
+Idents(kccs) <- kccs$sub_ccs
+hsa_markers_regional <- FindAllMarkers(kccs, logfc.threshold = 0, return.thresh = Inf)
+
+hsa_markers_regional_filtered <- hsa_markers_regional %>%
+  filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1>=0.1) # for FC > 1.5
+
+hsa_san <- hsa_markers_regional_filtered[hsa_markers_regional_filtered$cluster == 'SA node',]
+hsa_san <- hsa_san$gene
+hsa_san <- intersect(hsa_san, rownames(mark_san_hsa)) # only include ccs-specific (diff exp compared to contractile cardiomyocytes)
+
+hsa_avn <- hsa_markers_regional_filtered[hsa_markers_regional_filtered$cluster == 'Compact AV node',]
+hsa_avn <- hsa_avn$gene
+hsa_avn <- intersect(hsa_avn, rownames(mark_avn_hsa))
+
+hsa_his <- hsa_markers_regional_filtered[hsa_markers_regional_filtered$cluster == 'His bundle',]
+hsa_his <- hsa_his$gene
+hsa_his <- intersect(hsa_his, rownames(mark_his_hsa))
+
+hsa_pf <- hsa_markers_regional_filtered[hsa_markers_regional_filtered$cluster == 'Purkinje fibers',]
+hsa_pf <- hsa_pf$gene
+hsa_pf <- intersect(hsa_pf, rownames(mark_pf_hsa))
+
+mm_to_hs_san_a <- ortholog_df[ortholog_df$mm %in% mmp_san,]
+mm_to_hs_avn_a <- ortholog_df[ortholog_df$mm %in% mmp_avn,]
+mm_to_hs_lnb_a <- ortholog_df[ortholog_df$mm %in% mmp_lnb,]
+mm_to_hs_his_a <- ortholog_df[ortholog_df$mm %in% mmp_his,]
+mm_to_hs_pf_a <- ortholog_df[ortholog_df$mm %in% mmp_pf,]
+
+shared_san_a <- intersect(hsa_san, mm_to_hs_san_a$hs)
+shared_avn_a <- intersect(hsa_avn, mm_to_hs_avn_a$hs)
+shared_his_a <- intersect(hsa_his, mm_to_hs_his_a$hs)
+shared_pf_a <- intersect(hsa_pf, mm_to_hs_pf_a$hs)
+
+# shared_hs_to_mm <- ortholog_df[ortholog_df$hs %in% c(shared_san, shared_avn, shared_his, shared_pf),]
+
+```
+
+# species-specific adult
+```{r}
+
+hs_to_mm_san_a <- ortholog_df[ortholog_df$hs %in% hsa_san,]
+hs_to_mm_avn_a <- ortholog_df[ortholog_df$hs %in% hsa_avn,]
+hs_to_mm_his_a <- ortholog_df[ortholog_df$hs %in% hsa_his,]
+hs_to_mm_pf_a <- ortholog_df[ortholog_df$hs %in% hsa_pf,]
+
+# percent expression of mouse regional markers in human ccs
+percent_hs_san_a <- Percent_Expressing(kccs, mm_to_hs_san_a$hs, group_by='sub_ccs')
+percent_hs_avn_a <- Percent_Expressing(kccs, mm_to_hs_avn_a$hs, group_by='sub_ccs')
+percent_hs_his_a <- Percent_Expressing(kccs, mm_to_hs_his_a$hs, group_by='sub_ccs')
+percent_hs_pf_a <- Percent_Expressing(kccs, mm_to_hs_pf_a$hs, group_by='sub_ccs')
+
+# percent expression of human regional markers in mouse ccs
+percent_mm_san_a <- Percent_Expressing(occs, hs_to_mm_san_a$mm, group_by='sub_ccs')
+percent_mm_avn_a <- Percent_Expressing(occs, hs_to_mm_avn_a$mm, group_by='sub_ccs')
+percent_mm_his_a <- Percent_Expressing(occs, hs_to_mm_his_a$mm, group_by='sub_ccs')
+percent_mm_pf_a <- Percent_Expressing(occs, hs_to_mm_pf_a$mm, group_by='sub_ccs')
+
+# human specific genes: <5% expression in respective mouse region, or not detected at all
+san_human_specific_a <-
+  c(rownames(percent_mm_san_a[percent_mm_san_a$SA.node < 5, ]), hs_to_mm_san_a$mm[hs_to_mm_san_a$mm %!in% rownames(gccs)])
+avn_human_specific_a <-
+  rownames(percent_mm_avn_a[percent_mm_avn_a$Compact.AVN < 5, ], hs_to_mm_avn_a$mm[hs_to_mm_avn_a$mm %!in% rownames(gccs)])
+his_human_specific_a <-
+  rownames(percent_mm_his_a[percent_mm_his_a$His.bundle < 5, ], hs_to_mm_his_a$mm[hs_to_mm_his_a$mm %!in% rownames(gccs)])
+pf_human_specific_a <-
+  rownames(percent_mm_pf_a[percent_mm_pf_a$Purkinje.fibers < 5, ], hs_to_mm_pf_a$mm[hs_to_mm_pf_a$mm %!in% rownames(gccs)])
+
+san_mouse_specific_a <-
+  c(rownames(percent_hs_san_a[percent_hs_san_a$SA.node < 5, ]), mm_to_hs_san_a$hs[mm_to_hs_san_a$hs %!in% rownames(fccs)])
+avn_mouse_specific_a <-
+  rownames(percent_hs_avn_a[percent_hs_avn_a$Compact.AVN < 5, ], mm_to_hs_avn_a$hs[mm_to_hs_avn_a$hs %!in% rownames(fccs)])
+his_mouse_specific_a <-
+  rownames(percent_hs_his_a[percent_hs_his_a$His.bundle < 5, ], mm_to_hs_his_a$hs[mm_to_hs_his_a$hs %!in% rownames(fccs)])
+pf_mouse_specific_a <-
+  rownames(percent_hs_pf_a[percent_hs_pf_a$Purkinje.fibers < 5, ], mm_to_hs_pf_a$hs[mm_to_hs_pf_a$hs %!in% rownames(fccs)])
+
+# convert all gene names to human, for use in heatmap labeling
+
+san_human_specific_a <- ortholog_df[ortholog_df$mm %in% san_human_specific_a,]$hs
+avn_human_specific_a <- ortholog_df[ortholog_df$mm %in% avn_human_specific_a,]$hs
+his_human_specific_a <- ortholog_df[ortholog_df$mm %in% his_human_specific_a,]$hs
+pf_human_specific_a <- ortholog_df[ortholog_df$mm %in% pf_human_specific_a,]$hs
+
+```
+
+# embryonic/adult-specific and shared
+```{r}
+
+hs_san_shared <- intersect(hsa_san, hse_san)
+hs_avn_shared <- intersect(hsa_avn, hse_avn)
+hs_his_shared <- intersect(hsa_his, hse_his)
+hs_pf_shared <- intersect(hsa_pf, hse_pf)
+
+# percent expression of human adult regional markers in human embryonic ccs
+percent_hs_san_adult_e <- Percent_Expressing(fccs, hsa_san, group_by='sub_ccs_onesan')
+percent_hs_avn_adult_e <- Percent_Expressing(fccs, hsa_avn, group_by='sub_ccs_onesan')
+percent_hs_his_adult_e <- Percent_Expressing(fccs, hsa_his, group_by='sub_ccs_onesan')
+percent_hs_pf_adult_e <- Percent_Expressing(fccs, hsa_pf, group_by='sub_ccs_onesan')
+
+# percent expression of human embryonic regional markers in human adult ccs
+percent_hs_san_embryo_a <- Percent_Expressing(kccs, hse_san, group_by='sub_ccs')
+percent_hs_avn_embryo_a <- Percent_Expressing(kccs, hse_avn, group_by='sub_ccs')
+percent_hs_his_embryo_a <- Percent_Expressing(kccs, hse_his, group_by='sub_ccs')
+percent_hs_pf_embryo_a <- Percent_Expressing(kccs, hse_pf, group_by='sub_ccs')
+
+# human adult specific genes: <5% expression in respective embryonic region, or not detected at all
+san_human_adult_specific <-
+  c(rownames(percent_hs_san_adult_e[percent_hs_san_adult_e$SAN < 5, ]), hsa_san[hsa_san %!in% rownames(fccs)])
+avn_human_adult_specific <-
+  c(rownames(percent_hs_avn_adult_e[percent_hs_avn_adult_e$Compact.AVN < 5, ]), hsa_avn[hsa_avn %!in% rownames(fccs)])
+his_human_adult_specific <-
+  c(rownames(percent_hs_his_adult_e[percent_hs_his_adult_e$His.bundle < 5, ]), hsa_his[hsa_his %!in% rownames(fccs)])
+pf_human_adult_specific <-
+  c(rownames(percent_hs_pf_adult_e[percent_hs_pf_adult_e$Purkinje.fibers < 5, ]), hsa_pf[hsa_pf %!in% rownames(fccs)])
+
+san_human_embryo_specific <-
+  c(rownames(percent_hs_san_embryo_a[percent_hs_san_embryo_a$SAN < 5, ]), hse_san[hse_san %!in% rownames(kccs)])
+avn_human_embryo_specific <-
+  c(rownames(percent_hs_avn_embryo_a[percent_hs_avn_embryo_a$Compact.AVN < 5, ]), hse_avn[hse_avn %!in% rownames(kccs)])
+his_human_embryo_specific <-
+  c(rownames(percent_hs_his_embryo_a[percent_hs_his_embryo_a$His.bundle < 5, ]), hse_his[hse_his %!in% rownames(kccs)])
+pf_human_embryo_specific <-
+  c(rownames(percent_hs_pf_embryo_a[percent_hs_pf_embryo_a$Purkinje.fibers < 5, ]), hse_pf[hse_pf %!in% rownames(kccs)])
+
+mm_san_shared <- intersect(mmp_san, mme_san)
+mm_avn_shared <- intersect(mmp_avn, mme_avn)
+mm_his_shared <- intersect(mmp_his, mme_his)
+mm_pf_shared <- intersect(mmp_pf, mme_pf)
+
+# percent expression of mouse adult regional markers in mouse embryonic ccs
+percent_mm_san_adult_e <- Percent_Expressing(gccs, mmp_san, group_by='sub_ccs_onesan')
+percent_mm_avn_adult_e <- Percent_Expressing(gccs, mmp_avn, group_by='sub_ccs_onesan')
+percent_mm_his_adult_e <- Percent_Expressing(gccs, mmp_his, group_by='sub_ccs_onesan')
+percent_mm_pf_adult_e <- Percent_Expressing(gccs, mmp_pf, group_by='sub_ccs_onesan')
+
+# percent expression of mouse embryonic regional markers in mouse adult ccs
+percent_mm_san_embryo_a <- Percent_Expressing(occs, mme_san, group_by='sub_ccs')
+percent_mm_avn_embryo_a <- Percent_Expressing(occs, mme_avn, group_by='sub_ccs')
+percent_mm_his_embryo_a <- Percent_Expressing(occs, mme_his, group_by='sub_ccs')
+percent_mm_pf_embryo_a <- Percent_Expressing(occs, mme_pf, group_by='sub_ccs')
+
+# mouse adult specific genes: <5% expression in respective embryonic region, or not detected at all
+san_mouse_adult_specific <-
+  c(rownames(percent_mm_san_adult_e[percent_mm_san_adult_e$SAN < 5, ]), mmp_san[mmp_san %!in% rownames(gccs)])
+avn_mouse_adult_specific <-
+  c(rownames(percent_mm_avn_adult_e[percent_mm_avn_adult_e$Compact.AVN < 5, ]), mmp_avn[mmp_avn %!in% rownames(gccs)])
+his_mouse_adult_specific <-
+  c(rownames(percent_mm_his_adult_e[percent_mm_his_adult_e$His.bundle < 5, ]), mmp_his[mmp_his %!in% rownames(gccs)])
+pf_mouse_adult_specific <-
+  c(rownames(percent_mm_pf_adult_e[percent_mm_pf_adult_e$Purkinje.fibers < 5, ]), mmp_pf[mmp_pf %!in% rownames(gccs)])
+
+san_mouse_embryo_specific <-
+  c(rownames(percent_mm_san_embryo_a[percent_mm_san_embryo_a$SAN < 5, ]), mme_san[mme_san %!in% rownames(occs)])
+avn_mouse_embryo_specific <-
+  c(rownames(percent_mm_avn_embryo_a[percent_mm_avn_embryo_a$Compact.AVN < 5, ]), mme_avn[mme_avn %!in% rownames(occs)])
+his_mouse_embryo_specific <-
+  c(rownames(percent_mm_his_embryo_a[percent_mm_his_embryo_a$His.bundle < 5, ]), mme_his[mme_his %!in% rownames(occs)])
+pf_mouse_embryo_specific <-
+  c(rownames(percent_mm_pf_embryo_a[percent_mm_pf_embryo_a$Purkinje.fibers < 5, ]), mme_pf[mme_pf %!in% rownames(occs)])
+
+# convert all gene names to human, for use in heatmap labeling
+
+san_mouse_embryo_specific <- ortholog_df[ortholog_df$mm %in% san_mouse_embryo_specific,]$hs
+avn_mouse_embryo_specific <- ortholog_df[ortholog_df$mm %in% avn_mouse_embryo_specific,]$hs
+his_mouse_embryo_specific <- ortholog_df[ortholog_df$mm %in% his_mouse_embryo_specific,]$hs
+pf_mouse_embryo_specific <- ortholog_df[ortholog_df$mm %in% pf_mouse_embryo_specific,]$hs
+
+san_mouse_adult_specific <- ortholog_df[ortholog_df$mm %in% san_mouse_adult_specific,]$hs
+avn_mouse_adult_specific <- ortholog_df[ortholog_df$mm %in% avn_mouse_adult_specific,]$hs
+his_mouse_adult_specific <- ortholog_df[ortholog_df$mm %in% his_mouse_adult_specific,]$hs
+pf_mouse_adult_specific <- ortholog_df[ortholog_df$mm %in% pf_mouse_adult_specific,]$hs
+
+mm_san_shared <- ortholog_df[ortholog_df$mm %in% mm_san_shared,]$hs
+mm_avn_shared <- ortholog_df[ortholog_df$mm %in% mm_avn_shared,]$hs
+mm_his_shared <- ortholog_df[ortholog_df$mm %in% mm_his_shared,]$hs
+mm_pf_shared <- ortholog_df[ortholog_df$mm %in% mm_pf_shared,]$hs
+
+```
+
+# dot plot prep and plot - SA node
+```{r}
+
+# Developing
+
+# Human fetal SAN markers
+san_markers_sub_hse <- hse_markers_regional[hse_markers_regional$cluster == 'SAN',]
+rownames(san_markers_sub_hse) <- san_markers_sub_hse$gene
+san_markers_sub_hse <- san_markers_sub_hse[, c("avg_log2FC", "p_val_adj"), drop=F] # Include p-value
+san_markers_sub_hse <- na.omit(unique(san_markers_sub_hse[c(shared_san_e, shared_san_a, hs_san_shared, mm_san_shared), , drop=F]))
+
+# Mouse embryonic SAN markers
+san_markers_sub_mme <- mme_markers_regional[mme_markers_regional$cluster == 'SAN',]
+rownames(san_markers_sub_mme) <- san_markers_sub_mme$gene
+san_markers_sub_mme <- san_markers_sub_mme[, c("avg_log2FC", "p_val_adj"), drop=F] # Include p-value
+san_markers_sub_mme <- na.omit(unique(san_markers_sub_mme[ortholog_df[ortholog_df$hs %in% c(
+    shared_san_e,
+    shared_san_a,
+    hs_san_shared,
+    mm_san_shared), ]$mm, , drop = F]))
+san_markers_sub_mme <- san_markers_sub_mme[rownames(san_markers_sub_mme) != "Gata5os", , drop=F]
+rownames(san_markers_sub_mme) <- setNames(ortholog_df$hs, ortholog_df$mm)[rownames(san_markers_sub_mme)] # rename mouse genes to human orthologs
+
+# Combine developing data
+san_markers_combined_e <- merge(
+  san_markers_sub_hse, 
+  san_markers_sub_mme, 
+  by = "row.names", 
+  all = TRUE
+)
+
+rownames(san_markers_combined_e) <- san_markers_combined_e$Row.names
+san_markers_combined_e <- san_markers_combined_e[, -1]
+colnames(san_markers_combined_e) <- c("avg_log2FC_hs_e", "p_val_adj_hs_e", "avg_log2FC_mm_e", "p_val_adj_mm_e")
+san_markers_combined_e[is.na(san_markers_combined_e)] <- 0
+
+# Adult/postnatal
+
+# human adult SAN markers
+san_markers_sub_hsa <- hsa_markers_regional[hsa_markers_regional$cluster == 'SA node',]
+rownames(san_markers_sub_hsa) <- san_markers_sub_hsa$gene
+san_markers_sub_hsa <- san_markers_sub_hsa[, c("avg_log2FC", "p_val_adj"), drop=F]
+san_markers_sub_hsa <- na.omit(unique(san_markers_sub_hsa[c(shared_san_e, shared_san_a, hs_san_shared, mm_san_shared), , drop=F]))
+
+# mouse postnatal SAN markers
+san_markers_sub_mmp <- mmp_markers_regional[mmp_markers_regional$cluster == 'SA node',]
+rownames(san_markers_sub_mmp) <- san_markers_sub_mmp$gene
+san_markers_sub_mmp <- san_markers_sub_mmp[, c("avg_log2FC", "p_val_adj"), drop=F]
+san_markers_sub_mmp <- na.omit(unique(san_markers_sub_mmp[ortholog_df[ortholog_df$hs %in% c(
+    shared_san_e,
+    shared_san_a,
+    hs_san_shared,
+    mm_san_shared), ]$mm, , drop = F]))
+rownames(san_markers_sub_mmp) <- setNames(ortholog_df$hs, ortholog_df$mm)[rownames(san_markers_sub_mmp)] # rename mouse genes to human orthologs
+
+# combine adult/posntatal data
+san_markers_combined_a <- merge(
+  san_markers_sub_hsa, 
+  san_markers_sub_mmp, 
+  by = "row.names", 
+  all = TRUE
+)
+
+rownames(san_markers_combined_a) <- san_markers_combined_a$Row.names
+san_markers_combined_a <- san_markers_combined_a[, -1]
+colnames(san_markers_combined_a) <- c("avg_log2FC_hs_a", "p_val_adj_hs_a", "avg_log2FC_mm_p", "p_val_adj_mm_p")
+san_markers_combined_a[is.na(san_markers_combined_a)] <- 0
+
+# combine developing and adult datasets
+san_e_a <- merge(san_markers_combined_a, san_markers_combined_e, by = 0, all = TRUE)
+rownames(san_e_a) <- san_e_a$Row.names
+san_e_a <- san_e_a[, -1]
+
+#reorder columns
+san_e_a <- san_e_a[c(
+  "avg_log2FC_hs_e",
+  "p_val_adj_hs_e",
+  "avg_log2FC_hs_a", 
+  "p_val_adj_hs_a",
+  "avg_log2FC_mm_e",
+  "p_val_adj_mm_e",
+  "avg_log2FC_mm_p",
+  "p_val_adj_mm_p"
+)]
+
+# set P to 1 (arbitrary, just insignificant) if log2FC<=0 (meaning gene is not enriched or not expressed in SAN)
+
+san_e_a$p_val_adj_hs_e[san_e_a$avg_log2FC_hs_e <= 0] <- 1
+san_e_a$p_val_adj_hs_a[san_e_a$avg_log2FC_hs_a <= 0] <- 1
+san_e_a$p_val_adj_mm_e[san_e_a$avg_log2FC_mm_e <= 0] <- 1
+san_e_a$p_val_adj_mm_p[san_e_a$avg_log2FC_mm_p <= 0] <- 1
+
+
+# for (i in seq_along(grep("avg_log2FC", colnames(san_e_a), value = TRUE))) {
+#   san_e_a[[grep("p_val_adj", colnames(san_e_a), value = TRUE)[i]]][san_e_a[[seq_along(grep("avg_log2FC", colnames(san_e_a), value = TRUE))[i]]] <= 0] <- 1
+# }
+
+san_e_a$gene <- rownames(san_e_a)
+
+library(tidyr)
+
+# reshape the dataframe into long format
+san_e_a_long <- san_e_a %>%
+  pivot_longer(cols = starts_with("avg_log2FC"),  
+               names_to = "Condition",  
+               values_to = "FoldChange") %>%
+  pivot_longer(cols = starts_with("p_val_adj"),  
+               names_to = "PValueCondition",  
+               values_to = "PValue",  
+               values_drop_na = TRUE) %>%
+  filter(gsub("avg_log2FC_", "", Condition) == gsub("p_val_adj_", "", PValueCondition)) %>%
+  mutate(Condition = factor(Condition, levels = c(
+    "avg_log2FC_hs_e", "avg_log2FC_hs_a", "avg_log2FC_mm_e", "avg_log2FC_mm_p"
+  )))
+
+
+# convert log2FC to fold change
+san_e_a_long$FoldChange <- 2^san_e_a_long$FoldChange
+
+# bin the fold change and p-values as before
+san_e_a_long$fc_bin <- cut(san_e_a_long$FoldChange, 
+                           breaks = c(-Inf, 1, 1.5, 3, Inf), 
+                           labels = c("< 1", "1 - 1.5", "1.5 - 3", "> 3"))
+
+san_e_a_long$p_bin <- cut(san_e_a_long$PValue, 
+                          breaks = c(-Inf, 0.05, Inf), 
+                          labels = c("< 0.05", "> 0.05"), 
+                          right = TRUE)
+
+
+# convert the 'gene' column to a factor with levels in the desired order
+san_e_a_long$gene <-
+  factor(san_e_a_long$gene, levels = rev(unique(
+    c(
+      intersect(shared_san_e, shared_san_a),
+      intersect(shared_san_e, hsa_san),
+      'RSRC1',
+      shared_san_e,
+      shared_san_a,
+      hs_san_shared,
+      mm_san_shared
+    )
+  )))
+
+san_e_a_long$gene <- factor(san_e_a_long$gene, levels = rev(levels(san_e_a_long$gene)))
+san_e_a_long$Condition <- factor(san_e_a_long$Condition, levels = rev(unique(san_e_a_long$Condition)))
+
+# order by gene column
+san_e_a_long <- san_e_a_long[order(san_e_a_long$gene), ]
+
+# logical conditions for each condition to check if gene is enriched in eaach dataset
+san_e_a_long <- san_e_a_long %>%
+  mutate(sig_vs_nonccs = case_when(
+    Condition == "avg_log2FC_hs_e" & gene %in% rownames(mark_san_hse) ~ TRUE,
+    Condition == "avg_log2FC_hs_a" & gene %in% rownames(mark_san_hsa) ~ TRUE,
+    Condition == "avg_log2FC_mm_e" & gene %in% ortholog_df[ortholog_df$mm %in% rownames(mark_san_mme),]$hs ~ TRUE,
+    Condition == "avg_log2FC_mm_p" & gene %in% ortholog_df[ortholog_df$mm %in% rownames(mark_san_mmp),]$hs ~ TRUE,
+    TRUE ~ FALSE
+  ))
+
+fig <- ggplot(san_e_a_long, aes(y = Condition, x = gene, size = interaction(sig_vs_nonccs, p_bin), color = fc_bin)) +
+  geom_point() +
+  scale_size_manual(values = c("TRUE.< 0.05" = 3, "TRUE.> 0.05" = 1, "FALSE.< 0.05" = 1, "FALSE.> 0.05" = 1)) +
+  scale_color_manual(values = c("#fff0f3", "#F8C9D0", "#DE9291", "#CA4E4C")) +
+  theme_bw() +
+  theme(axis.line = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_rect(color='black', linewidth=1),
+        panel.background = element_blank(),
+        axis.text.y = element_blank(),
+        axis.text.x = element_text(face='italic', size=8, hjust = 1, vjust=0.5, angle=90),
+        axis.title.y = element_blank(),
+        axis.title.x = element_blank(),
+        legend.position='none')
+
+ggsave('san_regional_markers_gene_names_ls.tiff', fig, height=3.5, width=10, dpi=600)
+
+# plot without gene names (for consistent width of dot plot across all plots)
+fig <- ggplot(san_e_a_long, aes(y = Condition, x = gene, size = interaction(sig_vs_nonccs, p_bin), color = fc_bin)) +
+  geom_point() +
+  scale_size_manual(values = c("TRUE.< 0.05" = 3, "TRUE.> 0.05" = 1, "FALSE.< 0.05" = 1, "FALSE.> 0.05" = 1)) +
+  scale_color_manual(values = c("#fff0f3", "#F8C9D0", "#DE9291", "#CA4E4C")) +
+  theme_bw() +
+  theme(axis.line = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_rect(color='black', linewidth=1),
+        panel.background = element_blank(),
+        axis.text.x = element_blank(),
+        axis.text.y = element_blank(),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        legend.position='none')
+
+ggsave('san_regional_markers_no_gene_names_ls.tiff', fig, height=2.75, width=10, dpi=600)
+
+```
+
+# dot plot prep and plot - AVN
+```{r}
+
+
+# Human embryonic SAN markers
+avn_markers_sub_hse <- hse_markers_regional[hse_markers_regional$cluster == 'Compact AVN',]
+rownames(avn_markers_sub_hse) <- avn_markers_sub_hse$gene
+avn_markers_sub_hse <- avn_markers_sub_hse[, c("avg_log2FC", "p_val_adj"), drop=F] # Include p-value
+avn_markers_sub_hse <- na.omit(unique(avn_markers_sub_hse[c(shared_avn_e, shared_avn_a, hs_avn_shared, mm_avn_shared), , drop=F]))
+
+# Mouse embryonic SAN markers
+avn_markers_sub_mme <- mme_markers_regional[mme_markers_regional$cluster == 'Compact AVN',]
+rownames(avn_markers_sub_mme) <- avn_markers_sub_mme$gene
+avn_markers_sub_mme <- avn_markers_sub_mme[, c("avg_log2FC", "p_val_adj"), drop=F] # Include p-value
+avn_markers_sub_mme <- na.omit(unique(avn_markers_sub_mme[ortholog_df[ortholog_df$hs %in% c(
+    shared_avn_e,
+    shared_avn_a,
+    hs_avn_shared,
+    mm_avn_shared), ]$mm, , drop = F]))
+rownames(avn_markers_sub_mme) <- setNames(ortholog_df$hs, ortholog_df$mm)[rownames(avn_markers_sub_mme)] # rename mouse genes to human orthologs
+
+# Combine embryonic data
+avn_markers_combined_e <- merge(
+  avn_markers_sub_hse, 
+  avn_markers_sub_mme, 
+  by = "row.names", 
+  all = TRUE
+)
+
+rownames(avn_markers_combined_e) <- avn_markers_combined_e$Row.names
+avn_markers_combined_e <- avn_markers_combined_e[, -1]
+colnames(avn_markers_combined_e) <- c("avg_log2FC_hs_e", "p_val_adj_hs_e", "avg_log2FC_mm_e", "p_val_adj_mm_e")
+avn_markers_combined_e[is.na(avn_markers_combined_e)] <- 0
+
+# Adult
+
+# Human adult SAN markers
+avn_markers_sub_hsa <- hsa_markers_regional[hsa_markers_regional$cluster == 'Compact AV node',]
+rownames(avn_markers_sub_hsa) <- avn_markers_sub_hsa$gene
+avn_markers_sub_hsa <- avn_markers_sub_hsa[, c("avg_log2FC", "p_val_adj"), drop=F]
+avn_markers_sub_hsa <- na.omit(unique(avn_markers_sub_hsa[c(shared_avn_e, shared_avn_a, hs_avn_shared, mm_avn_shared), , drop=F]))
+
+# Mouse postnatal SAN markers
+avn_markers_sub_mmp <- mmp_markers_regional[mmp_markers_regional$cluster == 'Compact AV node',]
+rownames(avn_markers_sub_mmp) <- avn_markers_sub_mmp$gene
+avn_markers_sub_mmp <- avn_markers_sub_mmp[, c("avg_log2FC", "p_val_adj"), drop=F]
+avn_markers_sub_mmp <- na.omit(unique(avn_markers_sub_mmp[ortholog_df[ortholog_df$hs %in% c(
+    shared_avn_e,
+    shared_avn_a,
+    hs_avn_shared,
+    mm_avn_shared), ]$mm, , drop = F]))
+rownames(avn_markers_sub_mmp) <- setNames(ortholog_df$hs, ortholog_df$mm)[rownames(avn_markers_sub_mmp)] # rename mouse genes to human orthologs
+
+avn_markers_combined_a <- merge(
+  avn_markers_sub_hsa, 
+  avn_markers_sub_mmp, 
+  by = "row.names", 
+  all = TRUE
+)
+
+rownames(avn_markers_combined_a) <- avn_markers_combined_a$Row.names
+avn_markers_combined_a <- avn_markers_combined_a[, -1]
+colnames(avn_markers_combined_a) <- c("avg_log2FC_hs_a", "p_val_adj_hs_a", "avg_log2FC_mm_p", "p_val_adj_mm_p")
+avn_markers_combined_a[is.na(avn_markers_combined_a)] <- 0
+
+avn_e_a <- merge(avn_markers_combined_a, avn_markers_combined_e, by = 0, all = TRUE)
+rownames(avn_e_a) <- avn_e_a$Row.names
+avn_e_a <- avn_e_a[, -1]
+
+#reorder columns
+avn_e_a <- avn_e_a[c(
+  "avg_log2FC_hs_e",
+  "p_val_adj_hs_e",
+  "avg_log2FC_hs_a", 
+  "p_val_adj_hs_a",
+  "avg_log2FC_mm_e",
+  "p_val_adj_mm_e",
+  "avg_log2FC_mm_p",
+  "p_val_adj_mm_p"
+)]
+
+# set P to 1 (arbitrary, just insignificant) if log2FC<=0
+
+avn_e_a$p_val_adj_hs_e[avn_e_a$avg_log2FC_hs_e <= 0] <- 1
+avn_e_a$p_val_adj_hs_a[avn_e_a$avg_log2FC_hs_a <= 0] <- 1
+avn_e_a$p_val_adj_mm_e[avn_e_a$avg_log2FC_mm_e <= 0] <- 1
+avn_e_a$p_val_adj_mm_p[avn_e_a$avg_log2FC_mm_p <= 0] <- 1
+
+
+avn_e_a$gene <- rownames(avn_e_a)
+
+library(tidyr)
+
+avn_e_a_long <- avn_e_a %>%
+  pivot_longer(cols = starts_with("avg_log2FC"),  
+               names_to = "Condition",  
+               values_to = "FoldChange") %>%
+  pivot_longer(cols = starts_with("p_val_adj"),  
+               names_to = "PValueCondition",  
+               values_to = "PValue",  
+               values_drop_na = TRUE) %>%
+  filter(gsub("avg_log2FC_", "", Condition) == gsub("p_val_adj_", "", PValueCondition)) %>%
+  mutate(Condition = factor(Condition, levels = c(
+    "avg_log2FC_hs_e", "avg_log2FC_hs_a", "avg_log2FC_mm_e", "avg_log2FC_mm_p"
+  )))
+
+
+avn_e_a_long$FoldChange <- 2^avn_e_a_long$FoldChange
+
+avn_e_a_long$fc_bin <- cut(avn_e_a_long$FoldChange, 
+                           breaks = c(-Inf, 1, 1.5, 3, Inf), 
+                           labels = c("< 1", "1 - 1.5", "1.5 - 3", "> 3"))
+
+avn_e_a_long$p_bin <- cut(avn_e_a_long$PValue, 
+                          breaks = c(-Inf, 0.05, Inf), 
+                          labels = c("< 0.05", "> 0.05"), 
+                          right = TRUE)
+
+
+# Convert the 'gene' column to a factor with levels in the desired order
+avn_e_a_long$gene <-
+  factor(avn_e_a_long$gene, levels = rev(unique(
+    c(
+      intersect(hs_avn_shared, mm_to_hs_avn_a$hs),
+      intersect(shared_avn_e, mm_to_hs_avn_a$hs),
+      shared_avn_e,
+      shared_avn_a,
+      hs_avn_shared,
+      mm_avn_shared
+    )
+  )))
+
+avn_e_a_long$gene <- factor(avn_e_a_long$gene, levels = rev(levels(avn_e_a_long$gene)))
+avn_e_a_long$Condition <- factor(avn_e_a_long$Condition, levels = rev(unique(avn_e_a_long$Condition)))
+
+avn_e_a_long <- avn_e_a_long[order(avn_e_a_long$gene), ]
+
+avn_e_a_long <- avn_e_a_long %>%
+  mutate(sig_vs_nonccs = case_when(
+    Condition == "avg_log2FC_hs_e" & gene %in% rownames(mark_avn_hse) ~ TRUE,
+    Condition == "avg_log2FC_hs_a" & gene %in% rownames(mark_avn_hsa) ~ TRUE,
+    Condition == "avg_log2FC_mm_e" & gene %in% ortholog_df[ortholog_df$mm %in% rownames(mark_avn_mme),]$hs ~ TRUE,
+    Condition == "avg_log2FC_mm_p" & gene %in% ortholog_df[ortholog_df$mm %in% rownames(mark_avn_mmp),]$hs ~ TRUE,
+    TRUE ~ FALSE
+  ))
+
+fig <- ggplot(avn_e_a_long, aes(y = Condition, x = gene, size = interaction(sig_vs_nonccs, p_bin), color = fc_bin)) +
+  geom_point() +
+  scale_size_manual(values = c("TRUE.< 0.05" = 3, "TRUE.> 0.05" = 1, "FALSE.< 0.05" = 1, "FALSE.> 0.05" = 1)) +
+  scale_color_manual(values = c("#fdf8e1", "#FFD899", "#f7b267", "#f9844a")) +
+  theme_bw() +
+  theme(axis.line = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_rect(color='black', linewidth=1),
+        panel.background = element_blank(),
+        axis.text.y = element_blank(),
+        axis.text.x = element_text(face='italic', size=8, hjust = 1, vjust=0.5, angle=90),
+        axis.title.y = element_blank(),
+        axis.title.x = element_blank(),
+        legend.position='none')
+
+ggsave('avn_regional_markers_gene_names_ls.tiff', fig, height=3.5, width=10, dpi=600)
+
+# plot without gene names (for consistent width of dot plot across all plots)
+fig <- ggplot(avn_e_a_long, aes(y = Condition, x = gene, size = interaction(sig_vs_nonccs, p_bin), color = fc_bin)) +
+  geom_point() +
+  scale_size_manual(values = c("TRUE.< 0.05" = 3, "TRUE.> 0.05" = 1, "FALSE.< 0.05" = 1, "FALSE.> 0.05" = 1)) +
+  scale_color_manual(values = c("#fdf8e1", "#FFD899", "#f7b267", "#f9844a")) +
+  theme_bw() +
+  theme(axis.line = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_rect(color='black', linewidth=1),
+        panel.background = element_blank(),
+        axis.text.x = element_blank(),
+        axis.text.y = element_blank(),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        legend.position='none')
+
+ggsave('avn_regional_markers_no_gene_names_ls.tiff', fig, height=2.75, width=10, dpi=600)
+
+```
+
+# dot plot prep and plot - HIS
+```{r}
+
+# Human embryonic SAN markers
+his_markers_sub_hse <- hse_markers_regional[hse_markers_regional$cluster == 'His bundle',]
+rownames(his_markers_sub_hse) <- his_markers_sub_hse$gene
+his_markers_sub_hse <- his_markers_sub_hse[, c("avg_log2FC", "p_val_adj"), drop=F] # Include p-value
+his_markers_sub_hse <- na.omit(unique(his_markers_sub_hse[c(shared_his_e, shared_his_a, hs_his_shared, mm_his_shared), , drop=F]))
+
+# Mouse embryonic SAN markers
+his_markers_sub_mme <- mme_markers_regional[mme_markers_regional$cluster == 'His bundle',]
+rownames(his_markers_sub_mme) <- his_markers_sub_mme$gene
+his_markers_sub_mme <- his_markers_sub_mme[, c("avg_log2FC", "p_val_adj"), drop=F] # Include p-value
+his_markers_sub_mme <- na.omit(unique(his_markers_sub_mme[ortholog_df[ortholog_df$hs %in% c(
+    shared_his_e,
+    shared_his_a,
+    hs_his_shared,
+    mm_his_shared), ]$mm, , drop = F]))
+rownames(his_markers_sub_mme) <- setNames(ortholog_df$hs, ortholog_df$mm)[rownames(his_markers_sub_mme)] # rename mouse genes to human orthologs
+
+# Combine embryonic data
+his_markers_combined_e <- merge(
+  his_markers_sub_hse, 
+  his_markers_sub_mme, 
+  by = "row.names", 
+  all = TRUE
+)
+
+rownames(his_markers_combined_e) <- his_markers_combined_e$Row.names
+his_markers_combined_e <- his_markers_combined_e[, -1]
+colnames(his_markers_combined_e) <- c("avg_log2FC_hs_e", "p_val_adj_hs_e", "avg_log2FC_mm_e", "p_val_adj_mm_e")
+his_markers_combined_e[is.na(his_markers_combined_e)] <- 0
+
+# Human adult SAN markers
+his_markers_sub_hsa <- hsa_markers_regional[hsa_markers_regional$cluster == 'His bundle',]
+rownames(his_markers_sub_hsa) <- his_markers_sub_hsa$gene
+his_markers_sub_hsa <- his_markers_sub_hsa[, c("avg_log2FC", "p_val_adj"), drop=F]
+his_markers_sub_hsa <- na.omit(unique(his_markers_sub_hsa[c(shared_his_e, shared_his_a, hs_his_shared, mm_his_shared), , drop=F]))
+
+# Mouse postnatal SAN markers
+his_markers_sub_mmp <- mmp_markers_regional[mmp_markers_regional$cluster == 'His bundle',]
+rownames(his_markers_sub_mmp) <- his_markers_sub_mmp$gene
+his_markers_sub_mmp <- his_markers_sub_mmp[, c("avg_log2FC", "p_val_adj"), drop=F]
+his_markers_sub_mmp <- na.omit(unique(his_markers_sub_mmp[ortholog_df[ortholog_df$hs %in% c(
+    shared_his_e,
+    shared_his_a,
+    hs_his_shared,
+    mm_his_shared), ]$mm, , drop = F]))
+rownames(his_markers_sub_mmp) <- setNames(ortholog_df$hs, ortholog_df$mm)[rownames(his_markers_sub_mmp)] # rename mouse genes to human orthologs
+
+his_markers_combined_a <- merge(
+  his_markers_sub_hsa, 
+  his_markers_sub_mmp, 
+  by = "row.names", 
+  all = TRUE
+)
+
+rownames(his_markers_combined_a) <- his_markers_combined_a$Row.names
+his_markers_combined_a <- his_markers_combined_a[, -1]
+colnames(his_markers_combined_a) <- c("avg_log2FC_hs_a", "p_val_adj_hs_a", "avg_log2FC_mm_p", "p_val_adj_mm_p")
+his_markers_combined_a[is.na(his_markers_combined_a)] <- 0
+
+his_e_a <- merge(his_markers_combined_a, his_markers_combined_e, by = 0, all = TRUE)
+rownames(his_e_a) <- his_e_a$Row.names
+his_e_a <- his_e_a[, -1]
+
+#reorder columns
+his_e_a <- his_e_a[c(
+  "avg_log2FC_hs_e",
+  "p_val_adj_hs_e",
+  "avg_log2FC_hs_a", 
+  "p_val_adj_hs_a",
+  "avg_log2FC_mm_e",
+  "p_val_adj_mm_e",
+  "avg_log2FC_mm_p",
+  "p_val_adj_mm_p"
+)]
+
+his_e_a$p_val_adj_hs_e[his_e_a$avg_log2FC_hs_e <= 0] <- 1
+his_e_a$p_val_adj_hs_a[his_e_a$avg_log2FC_hs_a <= 0] <- 1
+his_e_a$p_val_adj_mm_e[his_e_a$avg_log2FC_mm_e <= 0] <- 1
+his_e_a$p_val_adj_mm_p[his_e_a$avg_log2FC_mm_p <= 0] <- 1
+
+his_e_a$gene <- rownames(his_e_a)
+
+library(tidyr)
+
+his_e_a_long <- his_e_a %>%
+  pivot_longer(cols = starts_with("avg_log2FC"),  
+               names_to = "Condition",  
+               values_to = "FoldChange") %>%
+  pivot_longer(cols = starts_with("p_val_adj"),  
+               names_to = "PValueCondition",  
+               values_to = "PValue",  
+               values_drop_na = TRUE) %>%
+  filter(gsub("avg_log2FC_", "", Condition) == gsub("p_val_adj_", "", PValueCondition)) %>%
+  mutate(Condition = factor(Condition, levels = c(
+    "avg_log2FC_hs_e", "avg_log2FC_hs_a", "avg_log2FC_mm_e", "avg_log2FC_mm_p"
+  )))
+
+
+his_e_a_long$FoldChange <- 2^his_e_a_long$FoldChange
+
+his_e_a_long$fc_bin <- cut(his_e_a_long$FoldChange, 
+                           breaks = c(-Inf, 1, 1.5, 3, Inf), 
+                           labels = c("< 1", "1 - 1.5", "1.5 - 3", "> 3"))
+
+his_e_a_long$p_bin <- cut(his_e_a_long$PValue, 
+                          breaks = c(-Inf, 0.05, Inf), 
+                          labels = c("< 0.05", "> 0.05"), 
+                          right = TRUE)
+
+
+his_e_a_long$gene <-
+  factor(his_e_a_long$gene, levels = rev(unique(
+    c(
+      'FBN2',
+      intersect(shared_his_e, mm_to_hs_his_a$hs),
+      intersect(hs_his_shared, mm_to_hs_his_a$hs),
+      shared_his_e,
+      shared_his_a,
+      hs_his_shared,
+      mm_his_shared
+    )
+  )))
+
+his_e_a_long$gene <- factor(his_e_a_long$gene, levels = rev(levels(his_e_a_long$gene)))
+his_e_a_long$Condition <- factor(his_e_a_long$Condition, levels = rev(unique(his_e_a_long$Condition)))
+
+his_e_a_long <- his_e_a_long[order(his_e_a_long$gene), ]
+
+his_e_a_long <- his_e_a_long %>%
+  mutate(sig_vs_nonccs = case_when(
+    Condition == "avg_log2FC_hs_e" & gene %in% rownames(mark_his_hse) ~ TRUE,
+    Condition == "avg_log2FC_hs_a" & gene %in% rownames(mark_his_hsa) ~ TRUE,
+    Condition == "avg_log2FC_mm_e" & gene %in% ortholog_df[ortholog_df$mm %in% rownames(mark_his_mme),]$hs ~ TRUE,
+    Condition == "avg_log2FC_mm_p" & gene %in% ortholog_df[ortholog_df$mm %in% rownames(mark_his_mmp),]$hs ~ TRUE,
+    TRUE ~ FALSE
+  ))
+
+fig <- ggplot(his_e_a_long, aes(y = Condition, x = gene, size = interaction(sig_vs_nonccs, p_bin), color = fc_bin)) +
+  geom_point() +
+  scale_size_manual(values = c("TRUE.< 0.05" = 3, "TRUE.> 0.05" = 1, "FALSE.< 0.05" = 1, "FALSE.> 0.05" = 1)) +
+  scale_color_manual(values = c("#e2eafc", "#a3cef1", "#5fa8d3", "#184e77")) +
+  theme_bw() +
+  theme(axis.line = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_rect(color='black', linewidth=1),
+        panel.background = element_blank(),
+        axis.text.y = element_blank(),
+        axis.text.x = element_text(face='italic', size=8, hjust = 1, vjust=0.5, angle=90),
+        axis.title.y = element_blank(),
+        axis.title.x = element_blank(),
+        legend.position='none')
+
+ggsave('/his_regional_markers_gene_names_ls.tiff', fig, height=3.5, width=10, dpi=600)
+
+# plot without gene names (for consistent width of dot plot across all plots)
+fig <- ggplot(his_e_a_long, aes(y = Condition, x = gene, size = interaction(sig_vs_nonccs, p_bin), color = fc_bin)) +
+  geom_point() +
+  scale_size_manual(values = c("TRUE.< 0.05" = 3, "TRUE.> 0.05" = 1, "FALSE.< 0.05" = 1, "FALSE.> 0.05" = 1)) +
+  scale_color_manual(values = c("#e2eafc", "#a3cef1", "#5fa8d3", "#184e77")) +
+  theme_bw() +
+  theme(axis.line = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_rect(color='black', linewidth=1),
+        panel.background = element_blank(),
+        axis.text.x = element_blank(),
+        axis.text.y = element_blank(),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        legend.position='none')
+
+ggsave('his_regional_markers_no_gene_names_ls.tiff', fig, height=2.75, width=10, dpi=600)
+
+```
+
+# dot plot prep and plot - PF
+```{r}
+
+
+# Human embryonic SAN markers
+pf_markers_sub_hse <- hse_markers_regional[hse_markers_regional$cluster == 'Purkinje fibers',]
+rownames(pf_markers_sub_hse) <- pf_markers_sub_hse$gene
+pf_markers_sub_hse <- pf_markers_sub_hse[, c("avg_log2FC", "p_val_adj"), drop=F] # Include p-value
+pf_markers_sub_hse <- na.omit(unique(pf_markers_sub_hse[c(shared_pf_e, shared_pf_a, hs_pf_shared, mm_pf_shared), , drop=F]))
+
+# Mouse embryonic SAN markers
+pf_markers_sub_mme <- mme_markers_regional[mme_markers_regional$cluster == 'PF',]
+rownames(pf_markers_sub_mme) <- pf_markers_sub_mme$gene
+pf_markers_sub_mme <- pf_markers_sub_mme[, c("avg_log2FC", "p_val_adj"), drop=F] # Include p-value
+pf_markers_sub_mme <- na.omit(unique(pf_markers_sub_mme[ortholog_df[ortholog_df$hs %in% c(
+    shared_pf_e,
+    shared_pf_a,
+    hs_pf_shared,
+    mm_pf_shared), ]$mm, , drop = F]))
+rownames(pf_markers_sub_mme) <- setNames(ortholog_df$hs, ortholog_df$mm)[rownames(pf_markers_sub_mme)] # rename mouse genes to human orthologs
+
+pf_markers_combined_e <- merge(
+  pf_markers_sub_hse, 
+  pf_markers_sub_mme, 
+  by = "row.names", 
+  all = TRUE
+)
+
+rownames(pf_markers_combined_e) <- pf_markers_combined_e$Row.names
+pf_markers_combined_e <- pf_markers_combined_e[, -1]
+colnames(pf_markers_combined_e) <- c("avg_log2FC_hs_e", "p_val_adj_hs_e", "avg_log2FC_mm_e", "p_val_adj_mm_e")
+pf_markers_combined_e[is.na(pf_markers_combined_e)] <- 0
+
+
+# Human adult SAN markers
+pf_markers_sub_hsa <- hsa_markers_regional[hsa_markers_regional$cluster == 'Purkinje fibers',]
+rownames(pf_markers_sub_hsa) <- pf_markers_sub_hsa$gene
+pf_markers_sub_hsa <- pf_markers_sub_hsa[, c("avg_log2FC", "p_val_adj"), drop=F]
+pf_markers_sub_hsa <- na.omit(unique(pf_markers_sub_hsa[c(shared_pf_e, shared_pf_a, hs_pf_shared, mm_pf_shared), , drop=F]))
+
+# Mouse postnatal SAN markers
+pf_markers_sub_mmp <- mmp_markers_regional[mmp_markers_regional$cluster == 'Purkinje fibers',]
+rownames(pf_markers_sub_mmp) <- pf_markers_sub_mmp$gene
+pf_markers_sub_mmp <- pf_markers_sub_mmp[, c("avg_log2FC", "p_val_adj"), drop=F]
+pf_markers_sub_mmp <- na.omit(unique(pf_markers_sub_mmp[ortholog_df[ortholog_df$hs %in% c(
+    shared_pf_e,
+    shared_pf_a,
+    hs_pf_shared,
+    mm_pf_shared), ]$mm, , drop = F]))
+rownames(pf_markers_sub_mmp) <- setNames(ortholog_df$hs, ortholog_df$mm)[rownames(pf_markers_sub_mmp)] # rename mouse genes to human orthologs
+
+pf_markers_combined_a <- merge(
+  pf_markers_sub_hsa, 
+  pf_markers_sub_mmp, 
+  by = "row.names", 
+  all = TRUE
+)
+
+rownames(pf_markers_combined_a) <- pf_markers_combined_a$Row.names
+pf_markers_combined_a <- pf_markers_combined_a[, -1]
+colnames(pf_markers_combined_a) <- c("avg_log2FC_hs_a", "p_val_adj_hs_a", "avg_log2FC_mm_p", "p_val_adj_mm_p")
+pf_markers_combined_a[is.na(pf_markers_combined_a)] <- 0
+
+pf_e_a <- merge(pf_markers_combined_a, pf_markers_combined_e, by = 0, all = TRUE)
+rownames(pf_e_a) <- pf_e_a$Row.names
+pf_e_a <- pf_e_a[, -1]
+
+pf_e_a <- pf_e_a[c(
+  "avg_log2FC_hs_e",
+  "p_val_adj_hs_e",
+  "avg_log2FC_hs_a", 
+  "p_val_adj_hs_a",
+  "avg_log2FC_mm_e",
+  "p_val_adj_mm_e",
+  "avg_log2FC_mm_p",
+  "p_val_adj_mm_p"
+)]
+
+pf_e_a$p_val_adj_hs_e[pf_e_a$avg_log2FC_hs_e <= 0] <- 1
+pf_e_a$p_val_adj_hs_a[pf_e_a$avg_log2FC_hs_a <= 0] <- 1
+pf_e_a$p_val_adj_mm_e[pf_e_a$avg_log2FC_mm_e <= 0] <- 1
+pf_e_a$p_val_adj_mm_p[pf_e_a$avg_log2FC_mm_p <= 0] <- 1
+
+
+pf_e_a$gene <- rownames(pf_e_a)
+
+library(tidyr)
+
+pf_e_a_long <- pf_e_a %>%
+  pivot_longer(cols = starts_with("avg_log2FC"),  
+               names_to = "Condition",  
+               values_to = "FoldChange") %>%
+  pivot_longer(cols = starts_with("p_val_adj"),  
+               names_to = "PValueCondition",  
+               values_to = "PValue",  
+               values_drop_na = TRUE) %>%
+  filter(gsub("avg_log2FC_", "", Condition) == gsub("p_val_adj_", "", PValueCondition)) %>%
+  mutate(Condition = factor(Condition, levels = c(
+    "avg_log2FC_hs_e", "avg_log2FC_hs_a", "avg_log2FC_mm_e", "avg_log2FC_mm_p"
+  )))
+
+
+pf_e_a_long$FoldChange <- 2^pf_e_a_long$FoldChange
+
+pf_e_a_long$fc_bin <- cut(pf_e_a_long$FoldChange, 
+                           breaks = c(-Inf, 1, 1.5, 3, Inf), 
+                           labels = c("< 1", "1 - 1.5", "1.5 - 3", "> 3"))
+
+pf_e_a_long$p_bin <- cut(pf_e_a_long$PValue, 
+                          breaks = c(-Inf, 0.05, Inf), 
+                          labels = c("< 0.05", "> 0.05"), 
+                          right = TRUE)
+
+
+pf_e_a_long$gene <-
+  factor(pf_e_a_long$gene, levels = rev(unique(
+    c(
+      c('IRX1', 'IRX2', 'SCN5A', 'CRIP1', 'ANGPT1', 'SEMA3A'), # sig in HE, ME, & MP but not FC > 1.5 in MP
+      intersect(hs_pf_shared, mm_to_hs_pf_e$hs),
+      shared_pf_e,
+      shared_pf_a,
+      hs_pf_shared,
+      mm_pf_shared
+    )
+  )))
+
+pf_e_a_long$gene <- factor(pf_e_a_long$gene, levels = rev(levels(pf_e_a_long$gene)))
+pf_e_a_long$Condition <- factor(pf_e_a_long$Condition, levels = rev(unique(pf_e_a_long$Condition)))
+
+pf_e_a_long <- pf_e_a_long[order(pf_e_a_long$gene), ]
+
+pf_e_a_long <- pf_e_a_long %>%
+  mutate(sig_vs_nonccs = case_when(
+    Condition == "avg_log2FC_hs_e" & gene %in% rownames(mark_pf_hse) ~ TRUE,
+    Condition == "avg_log2FC_hs_a" & gene %in% rownames(mark_pf_hsa) ~ TRUE,
+    Condition == "avg_log2FC_mm_e" & gene %in% ortholog_df[ortholog_df$mm %in% rownames(mark_pf_mme),]$hs ~ TRUE,
+    Condition == "avg_log2FC_mm_p" & gene %in% ortholog_df[ortholog_df$mm %in% rownames(mark_pf_mmp),]$hs ~ TRUE,
+    TRUE ~ FALSE
+  ))
+
+fig <- ggplot(pf_e_a_long, aes(y = Condition, x = gene, size = interaction(sig_vs_nonccs, p_bin), color = fc_bin)) +
+  geom_point() +
+  scale_size_manual(values = c("TRUE.< 0.05" = 3, "TRUE.> 0.05" = 1, "FALSE.< 0.05" = 1, "FALSE.> 0.05" = 1)) +
+  scale_color_manual(values = c("#F5F3F7", "#dec0f1", "#b79ced", "#6247aa")) +
+  theme_bw() +
+  theme(axis.line = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_rect(color='black', linewidth=1),
+        panel.background = element_blank(),
+        axis.text.y = element_blank(),
+        axis.text.x = element_text(face='italic', size=8, hjust = 1, vjust=0.5, angle=90),
+        axis.title.y = element_blank(),
+        axis.title.x = element_blank(),
+        legend.position='none')
+
+ggsave('pf_regional_markers_gene_names_ls.tiff', fig, height=3.5, width=10, dpi=600)
+
+# plot without gene names (for consistent width of dot plot across all plots)
+fig <- ggplot(pf_e_a_long, aes(y = Condition, x = gene, size = interaction(sig_vs_nonccs, p_bin), color = fc_bin)) +
+  geom_point() +
+  scale_size_manual(values = c("TRUE.< 0.05" = 3, "TRUE.> 0.05" = 1, "FALSE.< 0.05" = 1, "FALSE.> 0.05" = 1)) +
+  scale_color_manual(values = c("#F5F3F7", "#dec0f1", "#b79ced", "#6247aa")) +
+  theme_bw() +
+  theme(axis.line = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_rect(color='black', linewidth=1),
+        panel.background = element_blank(),
+        axis.text.x = element_blank(),
+        axis.text.y = element_blank(),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        legend.position='none')
+
+ggsave('pf_regional_markers_no_gene_names_ls.tiff', fig, height=2.75, width=10, dpi=600)
+
+```

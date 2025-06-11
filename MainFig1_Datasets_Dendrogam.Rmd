@@ -1,0 +1,334 @@
+---
+title: "Datasets_Dendrogram"
+output: html_document
+date: "2024-09-11"
+---
+
+# load libraries and data
+```{r}
+
+library(Seurat)
+library(tidyverse)
+
+# ccs only objects
+fccs <- readRDS('farah_ccs_20240910.rds') # Farah et al, Nature 2024 (human embryonic)
+gccs <- readRDS('goodyer_ccs_20240910.rds') # Goodyer et al, Circ Res 2019 (mouse embryonic)
+kccs <- readRDS('kanemaru_ccs_20240910.rds') # Kanemaru et al, Nature 2023 (human adult)
+occs <- readRDS('20231212_ccs_object.rds') # Oh et al, Nat Commun 2024 (mouse postnatal)
+lccs <- readRDS('protze_fetal_san_pacemakeronly.rds')
+zccs_nahia <- readRDS('zebrafish_ccs_20250401.rds')
+zccs_li <- readRDS('zebrafish_ccs_adult_li.rds')
+zf_mdk_trbc <- readRDS('/zf_mdk_trbc_20250515.rds')
+rccs <- readRDS('/rat_ccs_20250401.rds')
+
+# all cm objects
+
+fcm <- readRDS('20240911_farah_cardiomyocytes_annotated.rds')
+gcm <- readRDS('goodyer_cm_20240910.rds')
+kcm <- readRDS('kanemaru_cm_qc.rds')
+lcm <- readRDS('protze_fetal_san.rds')
+zcm_nahia <- readRDS('zebrafish_cm_20250401.rds')
+zcm_li <- readRDS('zebrafish_cm_adult_li.rds')
+zf_mdk_cm <- readRDS('myocardium.rds')
+rcm <- readRDS('rat_san_avn_cm_20250401.rds')
+
+Idents(kcm) <- kcm$cell_state
+kcm <- SetIdent(kcm, WhichCells(kcm, idents=c('vCM1', 'vCM2', 'vCM3_stressed', 'vCM4', 'vCM5')), 'vCM')
+kcm <- SetIdent(kcm, WhichCells(kcm, idents=c('aCM1', 'aCM2', 'aCM3', 'aCM4', 'aCM5')), 'aCM')
+kcm <- SetIdent(kcm, WhichCells(kcm, idents='Purkinje_cell'), 'Purkinje fibers')
+kcm <- SetIdent(kcm, WhichCells(kcm, idents='AVN_bundle_cell'), 'His bundle')
+kcm <- SetIdent(kcm, WhichCells(kcm, idents='AVN_P_cell'), 'Compact AV node')
+kcm <- SetIdent(kcm, WhichCells(kcm, idents='SAN_P_cell'), 'SA node')
+kcm$sub_ccs <- Idents(kcm)
+
+occs$sub_ccs <- Idents(occs)
+lccs$sub_ccs <- Idents(lccs)
+
+```
+
+# UMAP embeddings
+```{r}
+
+fig <- DimPlot(occs, cells=WhichCells(occs, idents='Contractile cardiomyocytes', invert=T), cols=c('#861D21', '#F4C542', '#9DC183', '#7CB8B2', '#7BAFD4', '#B39CDA', '#8F7BA3', '#ECC2D2'), group.by='sub_all_onehis', pt.size=0.75) & NoAxes() & NoLegend() & theme(plot.title=element_blank())
+
+ggsave('/Users/marwanbakr/docs/kimlab/manuscripts/2024 CCS comparative/figures/fig1/mp_umap_no_legend.tiff', fig, width=7, height=5)
+
+fig <- DimPlot(gccs, cols=c('#641619', '#CA4E4C', '#E68D75', '#F4C542', '#F0D58C', '#91B88C', '#ACC996', '#A3C1DA', '#7CB8B2', '#C7B8E2', '#8F7BA3'), group.by='sub_ccs', pt.size=1.25) & NoAxes() & NoLegend() & theme(plot.title = element_blank())
+
+ggsave('/Users/marwanbakr/docs/kimlab/manuscripts/2024 CCS comparative/figures/fig1/me_umap_no_legend.tiff', fig, width=7, height=5)
+
+fig <- DimPlot(kccs, cols=c('#861D21', '#F4C542', '#7CB8B2', '#8F7BA3'), group.by='sub_ccs', pt.size=1.75) & NoAxes() & NoLegend() & theme(plot.title=element_blank())
+
+ggsave('/Users/marwanbakr/docs/kimlab/manuscripts/2024 CCS comparative/figures/fig1/ha_umap_no_legend.tiff', fig, width=7, height=5)
+
+fig <- DimPlot(fccs, cols=c('#641619', '#CA4E4C', '#E68D75', '#F4C542', '#9DC183', '#7CB8B2', '#8F7BA3'), group.by='sub_ccs') & NoAxes() & NoLegend() & theme(plot.title=element_blank())
+
+ggsave('/Users/marwanbakr/docs/kimlab/manuscripts/2024 CCS comparative/figures/fig1/he_umap_no_legend.tiff', fig, width=7, height=5)
+
+fig <- DimPlot(lccs, cols=c('#861D21', '#E44C31', '#E68D75'), group.by='sub_ccs', pt.size=1.25) & NoAxes() & NoLegend() & theme(plot.title=element_blank())
+
+ggsave('/Users/marwanbakr/docs/kimlab/manuscripts/2024 CCS comparative/figures/fig1/h19_umap_no_legend.tiff', fig, width=7, height=5)
+
+fig <- DimPlot(rccs, cols=c('#861D21', '#F4C542', '#9DC183'), group.by='sub_ccs', pt.size=1.5) & NoAxes() & NoLegend() & theme(plot.title=element_blank())
+
+ggsave('/Users/marwanbakr/docs/kimlab/manuscripts/2024 CCS comparative/figures/fig1/rat_umap_no_legend.tiff', fig, width=7, height=5)
+
+fig <- DimPlot(zccs_nahia, cols=c('#861D21', '#F4C542'), group.by='sub_ccs', pt.size=2.6) & NoAxes() & NoLegend() & theme(plot.title=element_blank())
+
+ggsave('/Users/marwanbakr/docs/kimlab/manuscripts/2024 CCS comparative/figures/fig1/zebrafish_umap_no_legend.tiff', fig, width=7, height=5)
+
+fig <- DimPlot(zccs_li, cols=c('#861D21', '#F4C542'), group.by='sub_ccs', pt.size=2) & NoAxes() & NoLegend() & theme(plot.title=element_blank())
+
+ggsave('/Users/marwanbakr/docs/kimlab/manuscripts/2024 CCS comparative/figures/fig1/zebrafish_adult_nodes_umap_no_legend.tiff', fig, width=7, height=5)
+
+fig <- DimPlot(zf_mdk_trbc, cols=c('#62b6cb', '#1b4965'), pt.size=1.5) & NoAxes() & NoLegend() & theme(plot.title=element_blank())
+
+ggsave('/Users/marwanbakr/docs/kimlab/manuscripts/2024 CCS comparative/figures/fig1/zebrafish_medaka_trabeculae_umap_no_legend.tiff', fig, width=7, height=5)
+
+# with legend
+
+fig <- DimPlot(occs, cells=WhichCells(occs, idents='Contractile cardiomyocytes', invert=T), cols=c('#861D21', '#F4C542', '#9DC183', '#7CB8B2', '#7BAFD4', '#B39CDA', '#8F7BA3', '#ECC2D2'), group.by='sub_all_onehis') & NoAxes() & theme(plot.title=element_blank())
+
+ggsave('/Users/marwanbakr/docs/kimlab/manuscripts/2024 CCS comparative/figures/fig1/mp_umap.tiff', fig, width=7, height=5)
+
+fig <- DimPlot(gccs, cols=c('#641619', '#CA4E4C', '#E68D75', '#F4C542', '#F0D58C', '#91B88C', '#ACC996', '#A3C1DA', '#7CB8B2', '#C7B8E2', '#8F7BA3'), group.by='sub_ccs') & NoAxes() & theme(plot.title = element_blank())
+
+ggsave('/Users/marwanbakr/docs/kimlab/manuscripts/2024 CCS comparative/figures/fig1/me_umap.tiff', fig, width=7, height=5)
+
+fig <- DimPlot(kccs, cols=c('#861D21', '#F4C542', '#7CB8B2', '#8F7BA3'), group.by='sub_ccs') & NoAxes() & theme(plot.title=element_blank())
+
+ggsave('/Users/marwanbakr/docs/kimlab/manuscripts/2024 CCS comparative/figures/fig1/ha_umap.tiff', fig, width=7, height=5)
+
+fig <- DimPlot(fccs, cols=c('#641619', '#CA4E4C', '#E68D75', '#F4C542', '#9DC183', '#7CB8B2', '#8F7BA3'), group.by='sub_ccs') & NoAxes() & theme(plot.title=element_blank())
+
+ggsave('/Users/marwanbakr/docs/kimlab/manuscripts/2024 CCS comparative/figures/fig1/he_umap.tiff', fig, width=7, height=5)
+
+```
+
+# orthology
+```{r}
+
+# orthology dataframe
+mouse_human_genes = read.csv(
+  "http://www.informatics.jax.org/downloads/reports/HOM_MouseHumanSequence.rpt",
+  sep = "\t"
+)
+
+ortholog_df <- data.frame(mm = character(), hs = character(), stringsAsFactors = FALSE)
+  
+for(gene in mouse_human_genes[mouse_human_genes$Common.Organism.Name == "mouse, laboratory",]$Symbol) {
+  class_key = (
+    mouse_human_genes %>% filter(Symbol == gene &
+                                   Common.Organism.Name == "mouse, laboratory")
+  )[['DB.Class.Key']]
+  if (!identical(class_key, integer(0))) {
+    human_genes = (
+      mouse_human_genes %>% filter(DB.Class.Key == class_key &
+                                     Common.Organism.Name == "human")
+    )[, "Symbol"]
+    for (human_gene in human_genes) {
+      ortholog_df <-
+        rbind(ortholog_df,
+              data.frame(
+                mm = gene,
+                hs = human_gene,
+                stringsAsFactors = FALSE
+              ))
+    }
+  }
+}
+
+# remove genes that don't have one-to-one mm <-> hs orthology
+
+ortholog_df <- ortholog_df %>%
+    group_by(mm) %>%
+    filter(n() == 1) %>%
+    ungroup()
+
+ortholog_df <- ortholog_df %>%
+    group_by(hs) %>%
+    filter(n() == 1) %>%
+    ungroup()
+
+# add CRNDE/Crnde, and LYZ/Lyz2 manually (not in Jax database)
+
+ortholog_df <- rbind(ortholog_df, data.frame(mm = 'Crnde', hs='CRNDE'))
+ortholog_df <- rbind(ortholog_df, data.frame(mm='Lyz2', hs='LYZ'))
+
+
+```
+
+# correlation - all datasets together
+```{r}
+
+zfin_human <- read_tsv("https://zfin.org/downloads/human_orthos.txt", 
+                       col_names = c("ZFIN_ID", "Zebrafish_Symbol", "Zebrafish_Desc", 
+                                     "Human_Symbol", "Human_Desc", "OMIM", 
+                                     "EntrezID", "Alt_Entrez", "AA", "ZFIN_Pub"),
+                       show_col_types = FALSE)
+
+zfin_human_1to1 <- zfin_human %>%
+  dplyr::group_by(Human_Symbol) %>%
+  dplyr::filter(dplyr::n_distinct(Zebrafish_Symbol) == 1) %>%
+  dplyr::ungroup() %>%
+  dplyr::group_by(Zebrafish_Symbol) %>%
+  dplyr::filter(dplyr::n_distinct(Human_Symbol) == 1) %>%
+  dplyr::ungroup() %>%
+  dplyr::select(Human_Symbol, Zebrafish_Symbol) %>%
+  dplyr::distinct()
+
+# 2. Now join cleanly and rename
+ortholog_df_zf <- ortholog_df %>%
+  left_join(zfin_human_1to1, by = c("hs" = "Human_Symbol"))
+
+ortholog_df_zf$dr <- ortholog_df_zf$Zebrafish_Symbol
+ortholog_df_zf$Zebrafish_Symbol <- NULL
+
+# filter to genes that are expressed in all datasets
+ortholog_common_df_zf <- ortholog_df_zf %>%
+  filter(
+    hs %in% rownames(fccs),
+    hs %in% rownames(kccs),
+    hs %in% rownames(lccs),
+    mm %in% rownames(gccs),
+    mm %in% rownames(occs),
+    mm %in% rownames(rccs),
+    dr %in% intersect(rownames(zccs_nahia), intersect(rownames(zccs_li), rownames(zf_mdk_trbc)))
+  )
+
+ortholog_common_df_zf <- ortholog_common_df_zf %>%
+  group_by(dr) %>%
+  filter(n_distinct(hs) == 1) %>%
+  ungroup()
+
+# fxn to extract, normalize, and scale 
+process_ccs_dataset <- function(seurat_obj, ortholog_common_df, species_column, dataset_name) {
+  # subset Seurat object to include only shared ortholog genes
+  counts_mtx <- GetAssayData(seurat_obj, assay = "RNA", slot = "counts")
+  common_genes <- intersect(ortholog_common_df[[species_column]], rownames(counts_mtx))
+  common_mtx <- counts_mtx[common_genes, ]
+  
+  # replace gene names with human orthologs (for mouse and zebrafish data)
+  if (species_column %in% c('mm', 'dr')) {
+    matched_rows <- match(rownames(common_mtx), ortholog_common_df[[species_column]])
+    rownames(common_mtx) <- ortholog_common_df$hs[matched_rows]
+  }
+  
+  # create new Seurat object with common genes
+  common_obj <- CreateSeuratObject(common_mtx)
+  common_obj@meta.data <- seurat_obj@meta.data
+
+  # normalize and scale  data
+  common_obj <- NormalizeData(common_obj)
+  common_obj <- ScaleData(common_obj)
+  
+  # appending suffix per dataset
+  if (dataset_name == "occs") {
+    common_obj@meta.data$sub_ccs <- paste0(common_obj@meta.data$sub_ccs, " (M,P)")
+  } else if (dataset_name == "gccs") {
+    common_obj@meta.data$sub_ccs <- paste0(common_obj@meta.data$sub_ccs, " (M,E)")
+  } else if (dataset_name == "kccs") {
+    common_obj@meta.data$sub_ccs <- paste0(common_obj@meta.data$sub_ccs, " (H,A)")
+  } else if (dataset_name == "fccs") {
+    common_obj@meta.data$sub_ccs <- paste0(common_obj@meta.data$sub_ccs, " (H,E)")
+  } else if (dataset_name == "rcss") {
+    common_obj@meta.data$sub_ccs <- paste0(common_obj@meta.data$sub_ccs, " (R,A)")
+  } else if (dataset_name == "zccs_nahia") {
+    common_obj@meta.data$sub_ccs <- paste0(common_obj@meta.data$sub_ccs, " (Z,E)")
+  } else if (dataset_name == "lccs") {
+    common_obj@meta.data$sub_ccs <- paste0(common_obj@meta.data$sub_ccs, " (H,E2)")
+  } else if (dataset_name == "zccs_li") {
+    common_obj@meta.data$sub_ccs <- paste0(common_obj@meta.data$sub_ccs, " (Z,A)")
+  } else if (dataset_name == "zf_trbc") {
+    common_obj@meta.data$sub_ccs <- paste0(common_obj@meta.data$sub_ccs, " (Z,A)")
+  } else if (dataset_name == "mdk_trbc") {
+    common_obj@meta.data$sub_ccs <- paste0(common_obj@meta.data$sub_ccs, " (MD,A)")
+  }
+  
+  # aggregate expression by cell type
+  avg_obj <- AggregateExpression(common_obj, return.seurat = TRUE, group.by = 'sub_ccs')
+  
+  return(GetAssayData(avg_obj, assay = "RNA", slot = "scale.data"))
+}
+
+avg_fccs_expr <- process_ccs_dataset(fccs, ortholog_common_df_zf, species_column = 'hs', dataset_name = 'fccs')
+avg_kccs_expr <- process_ccs_dataset(kccs, ortholog_common_df_zf, species_column = 'hs', dataset_name = 'kccs')
+avg_lccs_expr <- process_ccs_dataset(lccs, ortholog_common_df_zf, species_column='hs', dataset_name='lccs')
+avg_gccs_expr <- process_ccs_dataset(gccs, ortholog_common_df_zf, species_column = 'mm', dataset_name = 'gccs')
+avg_occs_expr <- process_ccs_dataset(subset(occs, idents=c('Proliferative CCS', 'vCM'), invert=T), ortholog_common_df_zf, species_column = 'mm', dataset_name = 'occs') # not including mouse postnatal proliferative CCS
+avg_rccs_expr <- process_ccs_dataset(rccs, ortholog_common_df_zf, species_column = 'mm', dataset_name = 'rcss')
+avg_zccs_nahia_expr <- process_ccs_dataset(zccs_nahia, ortholog_common_df_zf, species_column = 'dr', dataset_name = 'zccs_nahia')
+
+zf_mdk_trbc$sub_ccs <- zf_mdk_trbc$cell_class
+avg_zccs_li_expr <-
+  process_ccs_dataset(
+    JoinLayers(merge(zccs_li, zf_mdk_trbc)),
+    ortholog_common_df_zf,
+    species_column = 'dr',
+    dataset_name = 'zccs_li'
+  )
+
+all_expr_data <- list(
+  "gccs" = avg_gccs_expr,
+  "fccs" = avg_fccs_expr,
+  "lccs" = avg_lccs_expr,
+  "occs" = avg_occs_expr,
+  "kccs" = avg_kccs_expr,
+  "rcss" = avg_rccs_expr,
+  "zccs_nahia" = avg_zccs_nahia_expr,
+  "zccs_li" = avg_zccs_li_expr
+)
+
+# fxn to create empty correlation matrix placeholders with correct dimensions
+create_empty_cor_matrix <- function(rows, cols) {
+  matrix(NA, nrow = rows, ncol = cols)
+}
+
+# initialize  empty matrix
+total_cell_types <- sum(sapply(all_expr_data, ncol))  # total number of cell types across all datasets
+cor_mtx_combined <- matrix(NA, nrow = total_cell_types, ncol = total_cell_types)
+
+# set row and column names for the combined correlation matrix
+row_col_names <- unlist(lapply(names(all_expr_data), function(dataset) {
+  colnames(all_expr_data[[dataset]])
+}))
+rownames(cor_mtx_combined) <- row_col_names
+colnames(cor_mtx_combined) <- row_col_names
+
+# calculate correlation matrix between each pair of datasets
+start_row <- 1
+for (dataset1 in names(all_expr_data)) {
+  end_row <- start_row + ncol(all_expr_data[[dataset1]]) - 1
+  
+  start_col <- 1
+  for (dataset2 in names(all_expr_data)) {
+    end_col <- start_col + ncol(all_expr_data[[dataset2]]) - 1
+    
+    # calculate the correlation between the two datasets
+    cor_mtx <- cor(all_expr_data[[dataset1]], all_expr_data[[dataset2]], method='pearson')
+    
+    # fill corresponding block in the combined matrix
+    cor_mtx_combined[start_row:end_row, start_col:end_col] <- cor_mtx
+    
+    # move in column
+    start_col <- end_col + 1
+  }
+  
+  # move in row
+  start_row <- end_row + 1
+}
+
+# convert correlation mtx to a distance mtx (using 1 - correlation)
+dist_mtx <- as.dist(1 - cor_mtx_combined)
+
+# hierarchical clustering
+hc <- hclust(dist_mtx, method = "average")
+
+tiff('20250515_dendrogram_all_linear_pearson.tiff', 
+     width = 12, height = 5.25, units = "in", res = 1200)
+
+plot(hc, main = "", xlab = "", ylab="", sub = "", cex = 0.8, labels=F, axes=F, lwd=0.5)
+
+dev.off()
+
+```
