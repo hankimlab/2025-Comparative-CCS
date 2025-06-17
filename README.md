@@ -1,8 +1,21 @@
 # Comparison of transcriptional heterogeneity in the vertebrate CCS
 
-This repository contains custom code and figure scripts for the manuscript titled **"Conservation and divergence of transcriptional heterogeneity in the cardiac conduction system"** (2025). The study compares gene expression profiles across the cardiac conduction system (CCS) in humans and model organisms (mouse, rat, zebrafish, medaka) using publicly available single-cell and single-nucleus RNA sequencing data.
+This repository contains custom code and figure scripts for the manuscript titled **"Conservation and divergence of transcriptional heterogeneity in the cardiac conduction system"** (2025). The study compares gene expression profiles across the cardiac conduction system (CCS) in humans and model organisms (mouse, rat, zebrafish, medaka) using publicly available single-cell and single-nucleus RNA sequencing data. All scripts are organized by main and supplementary figures and contain the required code for preprocessing, analysis, and visualization. The data used in this study is available through an interactive online web application, CCS atlas, [linked here](https://ccsatlas.com/).
 
-All scripts are organized by main and supplementary figures and contain the required code for preprocessing, analysis, and visualization.
+Below is a summary of the datasets used:
+
+| **Species**                | **Stages included**         | **Modality**         | **Reference**                     |
+|----------------------------|-----------------------------|----------------------|-----------------------------------|
+| **Human**                  | Fetus (9-15 pcw)            | scRNA-seq, MERFISH   | Farah et al., Nature (2024)       |
+| **Human**                  | Fetus (19 pcw)              | snRNA-seq            | Lim et al., Nat. Commun. (2024)   |
+| **Human**                  | Adult (20-75 yrs)           | snRNA-seq, Visium    | Kanemaru et al., Nature (2023)    |
+| **Human**                  | iPSC-SAN (day 0 to day 19)  | scRNA-seq            | Wiesinger et al., eLife (2022)    |
+| **Mouse**                  | Embryo (E16.5)              | scRNA-seq            | Goodyer et al., Circ. Res. (2019) |
+| **Mouse**                  | Postnatal (P1-P4)           | scRNA-seq            | Oh et al., Nat. Commun. (2024)    |
+| **Rat**                    | Adult (17 wks)              | snRNA-seq            | Arduini et al., Cell Rep. (2024)  |
+| **Zebrafish**              | Embryo (48-72 hpf)          | scRNA-seq            | Abu Nahia et al., iScience (2024) |
+| **Zebrafish**              | Adult (6-12 mo)             | scRNA-seq            | Li et al., Nat. Commun. (2024)    |
+| **Zebrafish and medaka**   | Adult (6-18 mo)             | scRNA-seq            | Carey et al., Biol. Open. (2024)  |
 
 ## Contents
 
