@@ -37,9 +37,9 @@ Below is a summary of the datasets used:
 - `SuppFig_Rat_Annotation.Rmd`: Annotation of adult rat CCS. 
 - `SuppFig_Zebrafish_Adult_Annotation.Rmd`: Annotation of adult zebrafish CCS.
 
-### Dependencies
+## Dependencies
 
-#### R
+### R
 
 Analyses were performed using R v4.4.0. The following R packages were used throughout the analyses:
 
@@ -65,7 +65,7 @@ Analyses were performed using R v4.4.0. The following R packages were used throu
 - [sp](https://cran.r-project.org/package=sp) (v2.1-4)
 - [Matrix](https://cran.r-project.org/package=Matrix) (v1.7-0)
 
-#### Python
+### Python
 
 Analyses were performed using Python v3.10.12. The following Python packages were used throughout the analyses:
 
