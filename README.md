@@ -23,7 +23,7 @@ Below is a summary of the datasets used:
 
 ### Main Figures
 
-- `MainFig1_Datasets_Dendrogram.Rmd`: Loading and uniform manifold approximation and projection (UMAP) visualization of datasets, and hierarchical clustering of CCS cell types from each species/stage.
+- `MainFig1_Datasets_Dendrogram.Rmd`: Uniform manifold approximation and projection (UMAP) visualization of datasets, and hierarchical clustering of CCS cell types from each species/stage.
 - `MainFig2_MouseHuman_PanCCS_Nodes_VCS.Rmd`: Human-mouse comparison of genes enriched in the whole CCS (Pan-CCS), nodes (sinoatrial node and compact atrioventricular node), or ventricular conduction system (VCS; *His* bundle and *Purkinje* fibers).
 - `MainFig3_MouseHuman_SAN_cAVN_HIS_PF.Rmd`: Human-mouse comparison of genes enriched in individual CCS components (sinoatrial node, compact atrioventricular node, *His* bundle, and *Purkinje* fibers.
 - `MainFig4_Rat.Rmd`: Comparison of CCS-enriched genes between rat, human, and mouse.
