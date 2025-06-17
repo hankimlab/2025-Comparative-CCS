@@ -27,7 +27,7 @@ Below is a summary of the datasets used:
 - `MainFig2_MouseHuman_PanCCS_Nodes_VCS.Rmd`: Human-mouse comparison of genes enriched in the whole CCS (Pan-CCS), nodes (sinoatrial node and compact atrioventricular node), or ventricular conduction system (VCS; *His* bundle and *Purkinje* fibers).
 - `MainFig3_MouseHuman_SAN_cAVN_HIS_PF.Rmd`: Human-mouse comparison of genes enriched in individual CCS components (sinoatrial node, compact atrioventricular node, *His* bundle, and *Purkinje* fibers.
 - `MainFig4_Rat.Rmd`: Comparison of CCS-enriched genes between rat, human, and mouse.
-- `MainFig5_Zebrafish_Medaka.Rmd`: Comparison of CCS-enriched genes between zebrafish, medaka, human, and mouse.
+- `MainFig5_Zebrafish_Medaka.Rmd`: Comparison of CCS-enriched genes between teleost fish (zebrafish & medaka), human, and mouse.
 - `MainFig6_SCENIC.Rmd` and `MainFig6_SCENIC_AUC_RSS.ipynb`: Regulatory network inference in the human CCS using [SCENIC](https://github.com/aertslab/SCENIC).
 - `MainFig7_Disease_Associations.Rmd`: Associations of conserved genes with conduction traits and disorders in humans (GWAS and rare coding variants).
 
