@@ -57,7 +57,7 @@ Analyses were performed using R v4.4.0. The following R packages were used throu
 - [ComplexHeatmap](https://jokergoo.github.io/ComplexHeatmap-reference/book/) (v2.20.0)
 - [ComplexUpset](https://github.com/krassowski/complex-upset) (v1.3.3)
 - [pheatmap](https://cran.r-project.org/package=pheatmap) (v1.0.12)
-- [scCustomize](https://sydneybsc.github.io/scCustomize/) (v2.1.2)
+- [scCustomize](https://github.com/samuel-marsh/scCustomize) (v2.1.2)
 - [ggalluvial](https://corybrunson.github.io/ggalluvial/) (v0.12.5)
 - [circlize](https://jokergoo.github.io/circlize_book/book/) (v0.4.16)
 - [scales](https://scales.r-lib.org/) (v1.3.0)
