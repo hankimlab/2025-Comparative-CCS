@@ -12,9 +12,9 @@ Below is a summary of the datasets used:
 | **Human**                  | iPSC-SAN (day 0 to day 19)  | scRNA-seq            | [Wiesinger et al., eLife (2022)](https://doi.org/10.7554/elife.76781)    |
 | **Mouse**                  | Embryo (E16.5)              | scRNA-seq            | [Goodyer et al., Circ. Res. (2019)](https://doi.org/10.1161/circresaha.118.314578) |
 | **Mouse**                  | Postnatal (P1-P4)           | scRNA-seq            | [Oh et al., Nat. Commun. (2024)](https://doi.org/10.1038/s41467-024-50849-1)    |
-| **Rat**                    | Adult (17 wks)              | snRNA-seq            | [Arduini et al., Cell Rep. (2024)](https://doi.org/10.1016/j.celrep.2024.115091)  |
+| **Rat**                    | Adult (17 wks)              | snRNA-seq            | [Arduini et al., Cell Rep. (2025)](https://doi.org/10.1016/j.celrep.2024.115091)  |
 | **Zebrafish**              | Embryo (48-72 hpf)          | scRNA-seq            | [Abu Nahia et al., iScience (2024)](https://doi.org/10.1016/j.isci.2024.110083) |
-| **Zebrafish**              | Adult (6-12 mo)             | scRNA-seq            | [Li et al., Nat. Commun. (2024)](https://doi.org/10.1038/s41467-025-59070-0)    |
+| **Zebrafish**              | Adult (6-12 mo)             | scRNA-seq            | [Li et al., Nat. Commun. (2025)](https://doi.org/10.1038/s41467-025-59070-0)    |
 | **Zebrafish and medaka**   | Adult (6-18 mo)             | scRNA-seq            | [Carey et al., Biol. Open. (2024)](https://doi.org/10.1242/bio.060156)  |
 
 ## Contents
