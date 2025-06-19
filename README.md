@@ -2,7 +2,7 @@
 
 ![Comparative CCS graphical abstract](images/schematic_v6.png)
 
-This repository contains custom code and figure scripts for the manuscript titled **"Conservation and divergence of transcriptional heterogeneity in the cardiac conduction system"** (2025). The study compares gene expression profiles across the cardiac conduction system (CCS) in humans and model organisms (mouse, rat, zebrafish, medaka) using publicly available single-cell and single-nucleus RNA sequencing data. All scripts are organized by main and supplementary figures and contain the required code for preprocessing, analysis, and visualization. The data used in this study is available through an interactive online web application, CCS atlas, [linked here](https://ccsatlas.com/), in the form of interactively accessible processed Seurat objects.
+This repository contains custom code and figure scripts for the manuscript titled **"Conservation and divergence of transcriptional heterogeneity in the cardiac conduction system"** (2025). The study compares gene expression profiles across the cardiac conduction system (CCS) in humans and model organisms (mouse, rat, zebrafish, medaka) using publicly available single-cell and single-nucleus RNA sequencing data. All scripts are organized by main and supplementary figures and contain the required code for preprocessing, analysis, and visualization. The data used in this study is available through an interactive online web application, CCS atlas, [linked here](https://ccsatlas.com/), which provides interactive access to processed Seurat objects.
 
 Below is a summary of the datasets used:
 
