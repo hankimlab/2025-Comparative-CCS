@@ -37,7 +37,6 @@ Below is a summary of the datasets used:
 - `SuppFig_Human_Fetal_Annotation.Rmd`: Annotation of fetal human CCS.
 - `SuppFig_Mouse_Human_Correlation.Rmd`: Correlation between human and mouse CCS populations.
 - `SuppFig_Rat_Annotation.Rmd`: Annotation of adult rat CCS. 
-- `SuppFig_Zebrafish_Adult_Annotation.Rmd`: Annotation of adult zebrafish CCS.
 
 ## Dependencies
 
