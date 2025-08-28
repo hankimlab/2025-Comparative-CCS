@@ -10,11 +10,11 @@ date: "2025-06-11"
 library(Seurat)
 library(tidyverse)
 
-zcm_nahia <- readRDS('zebrafish_cm_20250401.rds')
-zccs_nahia <- readRDS('zebrafish_ccs_20250401.rds')
+zcm_nahia <- readRDS('/Users/marwanbakr/docs/kimlab/scRNA-seq/zebrafish_heart/embryo/zebrafish_cm_20250401.rds')
+zccs_nahia <- readRDS('/Users/marwanbakr/docs/kimlab/scRNA-seq/zebrafish_heart/embryo/zebrafish_ccs_20250401.rds')
 
-zcm_li <- readRDS('zebrafish_cm_adult_li.rds')
-zccs_li <- readRDS('zebrafish_ccs_adult_li.rds')
+zcm_li <- readRDS('/Users/marwanbakr/docs/kimlab/scRNA-seq/zebrafish_ncomms/zebrafish_cm_adult_li.rds')
+zccs_li <- readRDS('/Users/marwanbakr/docs/kimlab/scRNA-seq/zebrafish_ncomms/zebrafish_ccs_adult_li.rds')
 
 zfin_human <- read_tsv("https://zfin.org/downloads/human_orthos.txt", 
                        col_names = c("ZFIN_ID", "Zebrafish_Symbol", "Zebrafish_Desc", 
@@ -40,22 +40,278 @@ mm_to_hs <- setNames(ortholog_df$hs, ortholog_df$mm)
 
 ```
 
-# embryo markers
+# integration
 ```{r}
 
-mark_san_dr_e <- FindMarkers(zcm_nahia, ident.1='SA node', ident.2='aCM', only.pos=T, min.pct=0.1)
+zcm_li$batch <- zcm_li$group
+zcm_nahia$batch <- zcm_nahia$sample
+
+merged <- merge(subset(zcm_li, idents=c('Ventricle', 'Atrium')), zcm_nahia) # no 'uninjured' from zcm_li
+
+merged[["percent.mt"]] <- PercentageFeatureSet(merged, pattern = "^mt-")
+merged <- subset(merged, nFeature_RNA > 200 & nFeature_RNA < 2500 & percent.mt < 20) # same as embryo dataset
+
+merged <- NormalizeData(merged)
+merged <- FindVariableFeatures(merged)
+merged <- ScaleData(merged, features=rownames(merged))
+merged <- RunPCA(merged)
+
+# integrate via reciprocal PCA projection
+merged <- IntegrateLayers(object = merged, method = RPCAIntegration, orig.reduction = "pca", new.reduction = "rpca")
+
+merged[["RNA"]] <- JoinLayers(merged[["RNA"]])
+
+merged <- FindNeighbors(merged, reduction = "rpca", dims = 1:20)
+merged <- RunUMAP(merged, dims = 1:20, reduction = "rpca")
+
+merged <- FindClusters(merged, resolution = 0.3)
+
+merged <- subset(merged, idents=c('4', '6', '9', '8'), invert=T) # smooth muscle- (acta2, cnn1b, tagln), endothelial- (kdrl, ramp2), fibroblast- (thbs1a, dcn, pdgfrb, col1a1a), immune-like (cxcl8a, cd74a, ccr9a, il1b, c1qc, c1qb) respectively
+
+merged <- NormalizeData(merged)
+merged <- FindVariableFeatures(merged)
+merged <- ScaleData(merged, features=rownames(merged))
+merged <- RunPCA(merged)
+merged <- FindNeighbors(merged, reduction = "rpca", dims = 1:20)
+merged <- RunUMAP(merged, dims = 1:20, reduction = "rpca")
+merged <- FindClusters(merged, resolution=0.15)
+
+merged <- SetIdent(merged, WhichCells(merged, idents=c('0', '1', '4')), 'vCM') #myh7l
+merged <- SetIdent(merged, WhichCells(merged, idents=c('2', '3')), 'aCM') #myh6
+
+merged <-
+  SetIdent(merged,
+           WhichCells(
+             merged,
+             idents = 'vCM',
+             expression = batch %in% c('Ventricle', 'Atrium')
+           ),
+           'vCM (6-12mo)')
+merged <-
+  SetIdent(merged,
+           WhichCells(
+             merged,
+             idents = 'vCM',
+             expression = batch %in% c('et31_48h', 'et31_72h', 'et33_48h', 'et33_72h')
+           ),
+           'vCM (48-72hpf)')
+merged <-
+  SetIdent(merged,
+           WhichCells(
+             merged,
+             idents = 'aCM',
+             expression = batch %in% c('Ventricle', 'Atrium')
+           ),
+           'aCM (6-12mo)')
+merged <-
+  SetIdent(merged,
+           WhichCells(
+             merged,
+             idents = 'aCM',
+             expression = batch %in% c('et31_48h', 'et31_72h', 'et33_48h', 'et33_72h')
+           ),
+           'aCM (48-72hpf)')
+merged <-
+  SetIdent(
+    merged,
+    WhichCells(
+      merged,
+      expression = batch %in% c('et31_48h', 'et31_72h', 'et33_48h', 'et33_72h') &
+        sub_ccs == 'Atrioventricular CMs'
+    ),
+    'AVC (48-72hpf)'
+  )
+
+merged <-
+  SetIdent(
+    merged,
+    WhichCells(
+      merged,
+      expression = batch %in% c('Ventricle', 'Atrium') &
+        sub_ccs == 'SA node'
+    ),
+    'SA node (6-12mo)'
+  )
+merged <-
+  SetIdent(
+    merged,
+    WhichCells(
+      merged,
+      expression = batch %in% c('et31_48h', 'et31_72h', 'et33_48h', 'et33_72h') &
+        sub_ccs == 'SA node'
+    ),
+    'SA node (48-72hpf)'
+  )
+
+merged$sub_ccs2 <- Idents(merged)
+
+zccs <- merge(subset(merged, idents=c("48-72hpf - SA node", "48-72hpf - AVC")), subset(merged, idents="6-12mo - SA node"))
+
+zccs <- NormalizeData(zccs)
+zccs <- FindVariableFeatures(zccs)
+zccs <- ScaleData(zccs, features=rownames(zccs))
+zccs <- RunPCA(zccs)
+
+zccs <- IntegrateLayers(object = zccs, method = RPCAIntegration, orig.reduction = "pca", new.reduction = "rpca", k.weight=83)
+
+zccs <- FindNeighbors(zccs, dims=1:20, reduction = 'rpca')
+zccs <- RunUMAP(zccs, dims=1:20, reduction='rpca')
+
+fig <- DimPlot(merged, pt.size=1.3) +
+  scale_color_manual(
+    values = c(
+      "SA node (48-72hpf)" = "#700000",
+      "SA node (6-12mo)" = "#C04A4A",
+      "AVC (48-72hpf)" = "#e7ad0d",
+      "aCM (48-72hpf)" = "#D5B09A",
+      "aCM (6-12mo)" = "#ede0d4",
+      "vCM (48-72hpf)" = "#8a817c",
+      "vCM (6-12mo)" = "#bcb8b1"
+    ),
+    labels = c(
+      "SA node (48-72hpf)",
+      "SA node (6-12mo)",
+      "AVC (48-72hpf)",
+      "aCM (48-72hpf)",
+      "aCM (6-12mo)",
+      "vCM (48-72hpf)", 
+      "vCM (6-12mo)"
+    )
+  ) +
+  theme(
+    legend.text = element_markdown(size = 22)
+  ) +
+  NoAxes()
+
+ggsave('dr_integrated_umap.tiff', fig, dpi=600, height=7, width=12)
+
+Idents(zccs) <- factor(Idents(zccs), levels=c('48-72hpf - SA node', '6-12mo - SA node', '48-72hpf - AVC'))
+
+fig <- DimPlot(zccs, cols=c("#700000", "#C04A4A", "#e7ad0d"), pt.size=3) & NoAxes() & NoLegend()
+
+ggsave('dr_integrated_umap_ccs_only.tiff', fig, dpi=600, height=7, width=7)
+
+fig <-
+  VlnPlot(
+    merged,
+    c(
+      'shox2',
+      'vsnl1a',
+      'tbx2a',
+      'tbx2b',
+      'cx36.7',
+      'myh7l',
+      'myh6'
+    ),
+    idents = c('48-72hpf - SA node', '6-12mo - SA node', '48-72hpf - AVC', '48-72hpf - aCM', '6-12mo - aCM'),
+    stack = T,
+    flip = T,
+    fill.by = 'ident'
+    ) &
+  stat_summary(
+    fun = mean,
+    geom = 'crossbar',
+    width = 0.1,
+    linewidth = 0.25,
+    colour = "black"
+  ) &
+  theme(
+    axis.title.x = element_blank(),
+    axis.ticks.length.x = unit(0.1, "cm"),
+    axis.ticks.length.y = unit(0.1, "cm"),
+    strip.text = element_text(hjust = 0, face = "italic", size=16),
+    axis.text.x = element_text(size=16)
+  ) &
+  NoLegend()
+
+```
+
+# separate objects
+```{r}
+
+Idents(merged) <- merged$batch
+
+zcm_e <- subset(merged, idents=c('et31_48h', 'et31_72h', 'et33_48h', 'et33_72h'))
+zcm_a <- subset(merged, idents=c('Atrium', 'Ventricle'))
+
+zcm_e <- NormalizeData(zcm_e)
+zcm_e <- FindVariableFeatures(zcm_e)
+zcm_e <- ScaleData(zcm_e, features=rownames(zcm_e))
+zcm_e <- RunPCA(zcm_e)
+zcm_e <- FindNeighbors(zcm_e, dims=1:20)
+zcm_e <- RunUMAP(zcm_e, dims=1:20)
+
+
+zcm_a <- NormalizeData(zcm_a)
+zcm_a <- FindVariableFeatures(zcm_a)
+zcm_a <- ScaleData(zcm_a, features=rownames(zcm_a))
+zcm_a <- RunPCA(zcm_a)
+zcm_a <- FindNeighbors(zcm_a, dims=1:20)
+zcm_a <- RunUMAP(zcm_a, dims=1:20)
+
+```
+
+# correlation between cell types (9-15pcw and 19pcw)
+```{r}
+
+# get pseudobulk matrices (scaled)
+rownames(zcm_e) <- gsub("_", "-", rownames(zcm_e))
+rownames(zcm_e) <- make.unique(rownames(zcm_e))
+
+rownames(zcm_a) <- gsub("_", "-", rownames(zcm_a))
+rownames(zcm_a) <- make.unique(rownames(zcm_a))
+
+Idents(zcm_e) <- zcm_e$sub_ccs2
+Idents(zcm_a) <- zcm_a$sub_ccs2
+
+eavg <- AverageExpression(zcm_e, return.seurat=T)
+eavg <- GetAssayData(eavg, assay = "RNA", slot = "scale.data")
+aavg <- AverageExpression(zcm_a, return.seurat=T)
+aavg <- GetAssayData(aavg, assay = "RNA", slot = "scale.data")
+
+# subset to genes common to both datasets
+common_genes <- intersect(rownames(eavg), rownames(aavg))
+eavg <- eavg[common_genes, ]
+aavg <- aavg[common_genes, ]
+
+aavg <- aavg[, colnames(aavg) != "g6-12mo - aCM (bmp4+)"]
+
+# compute correlation matrix
+cor_mtx <- cor(eavg, aavg, method = "pearson")
+
+library(pheatmap)
+
+tiff(
+  'PLACEHOLDER.tiff',
+  width = 7,
+  height = 6,
+  units = "cm",
+  res = 600
+)
+
+pheatmap(cor_mtx, cluster_rows = FALSE, cluster_cols = FALSE,
+         color = colorRampPalette(c('#f5f9fe', '#7ab6d9', '#08326e'))(1000),
+         border_color = NA, scale = "row", fontsize = 5)
+
+dev.off()
+
+```
+
+```{r}
+
+mark_san_dr_e <- FindMarkers(zcm_e, ident.1='48-72hpf - SA node', ident.2='48-72hpf - aCM', only.pos=T, min.pct=0.1)
 mark_san_dr_e <- mark_san_dr_e %>% filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1 >= 0.1) # for FC > 1.5
 
-mark_avn_dr_e <- FindMarkers(zcm_nahia, ident.1='Atrioventricular CMs', ident.2='vCM', only.pos=T, min.pct=0.1)
+mark_avn_dr_e <- FindMarkers(zcm_e, ident.1='48-72hpf - AVC', ident.2='48-72hpf - vCM', only.pos=T, min.pct=0.1)
 mark_avn_dr_e <- mark_avn_dr_e %>% filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1 >= 0.1) # for FC > 1.5
 
-dr_san_vs_avn_e <- FindMarkers(zcm_nahia, ident.1='SA node', ident.2='Atrioventricular CMs', only.pos=T, min.pct=0.1)
+dr_san_vs_avn_e <- FindMarkers(zcm_e, ident.1='48-72hpf - SA node', ident.2='48-72hpf - AVC', only.pos=T, min.pct=0.1)
 dr_san_vs_avn_e <- dr_san_vs_avn_e %>% filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1 >= 0.1)
 
-dr_avn_vs_san_e <- FindMarkers(zcm_nahia, ident.1='Atrioventricular CMs', ident.2='SA node', only.pos=T, min.pct=0.1)
+dr_avn_vs_san_e <- FindMarkers(zcm_e, ident.1='48-72hpf - AVC', ident.2='48-72hpf - SA node', only.pos=T, min.pct=0.1)
 dr_avn_vs_san_e <- dr_avn_vs_san_e %>% filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1 >= 0.1)
 
-mark_nodes_dr_e <- FindMarkers(zcm_nahia, ident.1 = c('SA node', 'Atrioventricular CMs'), ident.2 = c('aCM', 'vCM'), only.pos = TRUE, min.pct = 0.1)
+mark_nodes_dr_e <- FindMarkers(zcm_e, ident.1 = c('48-72hpf - SA node', '48-72hpf - AVC'), ident.2 = c('48-72hpf - aCM', '48-72hpf - vCM'), only.pos = TRUE, min.pct = 0.1)
 mark_nodes_dr_e <- mark_nodes_dr_e %>%
   filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1 >= 0.1)
 
@@ -85,20 +341,20 @@ shared_san_mm_dr_e <- shared_hs_san_mm_dr_e[!is.na(shared_hs_san_mm_dr_e)]
 shared_avn_mm_dr_e <- shared_hs_avn_mm_dr_e[!is.na(shared_hs_avn_mm_dr_e)]
 shared_nodes_mm_dr_e <- shared_hs_nodes_mm_dr_e[!is.na(shared_hs_nodes_mm_dr_e)]
 
-# reverse map: human --> all zebrafish genes (to handle one-to-many orthologs)
+# Reverse map: human → all zebrafish genes (to handle one-to-many orthologs)
 hs_to_dr_list <- split(names(dr_to_hs), dr_to_hs)
 
-# keep only valid human orthologs (non-NA)
+# Keep only valid human orthologs (non-NA)
 valid_dr_san_hs <- dr_to_hs[dr_san_e]; valid_dr_san_hs <- valid_dr_san_hs[!is.na(valid_dr_san_hs)]
 valid_dr_avn_hs <- dr_to_hs[dr_avn_e]; valid_dr_avn_hs <- valid_dr_avn_hs[!is.na(valid_dr_avn_hs)]
 valid_dr_nodes_hs <- dr_to_hs[dr_nodes_e]; valid_dr_nodes_hs <- valid_dr_nodes_hs[!is.na(valid_dr_nodes_hs)]
 
-# zebrafish genes whose human orthologs are shared with human
+# Zebrafish genes whose human orthologs are shared with human (hse_san)
 shared_san_zf_dr_e_hs <- names(valid_dr_san_hs)[valid_dr_san_hs %in% hse_san]
 shared_avn_zf_dr_e_hs <- names(valid_dr_avn_hs)[valid_dr_avn_hs %in% hse_avn]
 shared_nodes_zf_dr_e_hs <- names(valid_dr_nodes_hs)[valid_dr_nodes_hs %in% hse_nodes]
 
-# zebrafish genes whose human orthologs are shared with mouse
+# Zebrafish genes whose human orthologs are shared with mouse (mme_san_to_hs)
 shared_san_zf_dr_e_mm <- names(valid_dr_san_hs)[valid_dr_san_hs %in% mme_san_to_hs]
 shared_avn_zf_dr_e_mm <- names(valid_dr_avn_hs)[valid_dr_avn_hs %in% mme_avn_to_hs]
 shared_nodes_zf_dr_e_mm <- names(valid_dr_nodes_hs)[valid_dr_nodes_hs %in% mme_nodes_to_hs]
@@ -109,61 +365,31 @@ shared_nodes_zf_dr_e_mm <- names(valid_dr_nodes_hs)[valid_dr_nodes_hs %in% mme_n
 # adult markers
 ```{r}
 
-mark_san_dr_a <- FindMarkers(zcm_li, ident.1='SA node', ident.2='aCM', only.pos=T, min.pct=0.1)
+mark_san_dr_a <- FindMarkers(zcm_a, ident.1='6-12mo - SA node', ident.2='6-12mo - aCM', only.pos=T, min.pct=0.1)
 mark_san_dr_a <- mark_san_dr_a %>% filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1 >= 0.1) # for FC > 1.5
 
-mark_avn_dr_a <- FindMarkers(zcm_li, ident.1='AVC', ident.2='aCM', only.pos=T, min.pct=0.1)
-mark_avn_dr_a <- mark_avn_dr_a %>% filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1 >= 0.1) # for FC > 1.5
-
-dr_san_vs_avn_a <- FindMarkers(zcm_li, ident.1='SA node', ident.2='AVC', only.pos=T, min.pct=0.1)
-dr_san_vs_avn_a <- dr_san_vs_avn_a %>% filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1 >= 0.1)
-
-dr_avn_vs_san_a <- FindMarkers(zcm_li, ident.1='AVC', ident.2='SA node', only.pos=T, min.pct=0.1)
-dr_avn_vs_san_a <- dr_avn_vs_san_a %>% filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1 >= 0.1)
-
-mark_nodes_dr_a <- FindMarkers(zcm_li, ident.1 = c('SA node', 'AVC'), ident.2 = 'aCM', only.pos = TRUE, min.pct = 0.1)
-mark_nodes_dr_a <- mark_nodes_dr_a %>%
-  filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1 >= 0.1)
-
-dr_san_a <- intersect(rownames(mark_san_dr_a), rownames(dr_san_vs_avn_a))
-dr_avn_a <- intersect(rownames(mark_avn_dr_a), rownames(dr_avn_vs_san_a))
-dr_nodes_a <- rownames(mark_nodes_dr_a)
+dr_san_a <- rownames(mark_san_dr_a)
 
 dr_san_to_hs_a <- dr_to_hs[dr_san_a]
-dr_avn_to_hs_a <- dr_to_hs[dr_avn_a]
-dr_nodes_to_hs_a <- dr_to_hs[dr_nodes_a]
 
 mmp_san_to_hs <- mm_to_hs[mmp_san]
-mmp_avn_to_hs <- mm_to_hs[mmp_avn]
-mmp_nodes_to_hs <- mm_to_hs[mmp_nodes]
 
 shared_san_hs_dr_a <- intersect(hsa_san, dr_san_to_hs_a)
-shared_avn_hs_dr_a <- intersect(hsa_avn, dr_avn_to_hs_a)
-shared_nodes_hs_dr_a <- intersect(hsa_nodes, dr_nodes_to_hs_a)
 
 shared_hs_san_mm_dr_a <- intersect(mmp_san_to_hs, dr_san_to_hs_a)
-shared_hs_avn_mm_dr_a <- intersect(mmp_avn_to_hs, dr_avn_to_hs_a)
-shared_hs_nodes_mm_dr_a <- intersect(mmp_nodes_to_hs, dr_nodes_to_hs_a)
 
 shared_san_mm_dr_a <- shared_hs_san_mm_dr_a[!is.na(shared_hs_san_mm_dr_a)]
-shared_avn_mm_dr_a <- shared_hs_avn_mm_dr_a[!is.na(shared_hs_avn_mm_dr_a)]
-shared_nodes_mm_dr_a <- shared_hs_nodes_mm_dr_a[!is.na(shared_hs_nodes_mm_dr_a)]
 
-# reverse map (to handle one-to-many orthologs)
+# Reverse map: human → all zebrafish genes (to handle one-to-many orthologs)
 hs_to_dr_list <- split(names(dr_to_hs), dr_to_hs)
 
-# keep only valid human orthologs (non-NA)
+# Keep only valid human orthologs (non-NA)
 valid_dr_san_hs <- dr_to_hs[dr_san_a]; valid_dr_san_hs <- valid_dr_san_hs[!is.na(valid_dr_san_hs)]
-valid_dr_avn_hs <- dr_to_hs[dr_avn_a]; valid_dr_avn_hs <- valid_dr_avn_hs[!is.na(valid_dr_avn_hs)]
-valid_dr_nodes_hs <- dr_to_hs[dr_nodes_a]; valid_dr_nodes_hs <- valid_dr_nodes_hs[!is.na(valid_dr_nodes_hs)]
 
 shared_san_zf_dr_a_hs <- names(valid_dr_san_hs)[valid_dr_san_hs %in% hsa_san]
-shared_avn_zf_dr_a_hs <- names(valid_dr_avn_hs)[valid_dr_avn_hs %in% hsa_avn]
-shared_nodes_zf_dr_a_hs <- names(valid_dr_nodes_hs)[valid_dr_nodes_hs %in% hsa_nodes]
 
 shared_san_zf_dr_a_mm <- names(valid_dr_san_hs)[valid_dr_san_hs %in% mmp_san_to_hs]
-shared_avn_zf_dr_a_mm <- names(valid_dr_avn_hs)[valid_dr_avn_hs %in% mmp_avn_to_hs]
-shared_nodes_zf_dr_a_mm <- names(valid_dr_nodes_hs)[valid_dr_nodes_hs %in% mmp_nodes_to_hs]
+
 
 ```
 
@@ -173,12 +399,6 @@ shared_nodes_zf_dr_a_mm <- names(valid_dr_nodes_hs)[valid_dr_nodes_hs %in% mmp_n
 shared_san_dr <- intersect(dr_san_e, dr_san_a)
 shared_san_dr_only <- setdiff(shared_san_dr, c(shared_san_zf_dr_e_mm, shared_san_zf_dr_e_hs, shared_san_zf_dr_a_mm, shared_san_zf_dr_a_hs))
 
-shared_avn_dr <- intersect(dr_avn_e, dr_avn_a)
-shared_avn_dr_only <- setdiff(shared_avn_dr, c(shared_avn_zf_dr_e_mm, shared_avn_zf_dr_e_hs, shared_avn_zf_dr_a_mm, shared_avn_zf_dr_a_hs))
-
-shared_nodes_dr <- intersect(dr_nodes_e, dr_nodes_a)
-shared_nodes_dr_only <- setdiff(shared_nodes_dr, c(shared_nodes_zf_dr_e_mm, shared_nodes_zf_dr_e_hs, shared_nodes_zf_dr_a_mm, shared_nodes_zf_dr_a_hs))
-
 ```
 
 # zebrafish embryo specific
@@ -186,18 +406,19 @@ shared_nodes_dr_only <- setdiff(shared_nodes_dr, c(shared_nodes_zf_dr_e_mm, shar
 
 library(scCustomize)
 
-# SAN 
+# SAN
 
-# % expression of embryo SAN markers in all other datasets
-percent_zf_a_san <- Percent_Expressing(zcm_li, dr_san_e, group_by = "sub_ccs")
+# get % expression of embryo SAN markers in all other datasets
+percent_zf_a_san <- Percent_Expressing(zcm_a, dr_san_e, group_by = "sub_ccs2")
 percent_mm_e_san <- Percent_Expressing(gccs, ortholog_df_zf$mm[ortholog_df_zf$dr %in% dr_san_e], group_by = "sub_ccs")
 percent_hs_e_san <- Percent_Expressing(fccs, ortholog_df_zf$hs[ortholog_df_zf$dr %in% dr_san_e], group_by = "sub_ccs")
 
+# get low expression genes in each species
 hs_low_expr <- rownames(percent_hs_e_san[percent_hs_e_san$SAN.tail < 5 & percent_hs_e_san$SAN.head < 5, ])
 mm_low_expr <- rownames(percent_mm_e_san[percent_mm_e_san$SAN.head < 5 & percent_mm_e_san$SAN.tail < 5, ])
-zf_a_low_expr <- rownames(percent_zf_a_san[percent_zf_a_san$SA.node < 5, ])
+zf_a_low_expr <- rownames(percent_zf_a_san[percent_zf_a_san$X6.12mo...SA.node < 5, ])
 
-# map human/mouse low expr genes to zebrafish genes
+# map human/mouse low expr to zebrafish genes
 hs_low_expr_dr <- ortholog_df_zf$dr[ortholog_df_zf$hs %in% hs_low_expr]
 mm_low_expr_dr <- ortholog_df_zf$dr[ortholog_df_zf$mm %in% mm_low_expr]
 
@@ -206,47 +427,26 @@ hs_low_expr_dr <- intersect(hs_low_expr_dr, dr_san_e)
 mm_low_expr_dr <- intersect(mm_low_expr_dr, dr_san_e)
 zf_a_low_expr <- intersect(zf_a_low_expr, dr_san_e)
 
-# genes missing in all other datasets
-dr_san_e_not_in_other <- dr_san_e[
-  !(dr_san_e %in% ortholog_df_zf$dr[ortholog_df_zf$hs %in% rownames(fccs)]) &
-  !(dr_san_e %in% ortholog_df_zf$dr[ortholog_df_zf$mm %in% rownames(gccs)]) &
-  !(dr_san_e %in% rownames(zcm_li))
-]
-
 # final zebrafish embryo-specific SAN list
-zf_san_specific_e <- union(
-  intersect(dr_san_e, intersect(hs_low_expr_dr, intersect(mm_low_expr_dr, zf_a_low_expr))),
-  dr_san_e_not_in_other
-)
+zf_san_specific_e <- intersect(dr_san_e, intersect(hs_low_expr_dr, intersect(mm_low_expr_dr, zf_a_low_expr)))
 
-# AVN/AVC
+# AVN
 
-percent_zf_a_avn <- Percent_Expressing(zcm_li, dr_avn_e, group_by = "sub_ccs")
 percent_mm_e_avn <- Percent_Expressing(gccs, ortholog_df_zf$mm[ortholog_df_zf$dr %in% dr_avn_e], group_by = "sub_ccs")
 percent_hs_e_avn <- Percent_Expressing(fccs, ortholog_df_zf$hs[ortholog_df_zf$dr %in% dr_avn_e], group_by = "sub_ccs")
 
 hs_low_expr_avn <- rownames(percent_hs_e_avn[percent_hs_e_avn$Compact.AVN < 5, ])
 mm_low_expr_avn <- rownames(percent_mm_e_avn[percent_mm_e_avn$Compact.AVN < 5, ])
-zf_a_low_expr_avn <- rownames(percent_zf_a_avn[percent_zf_a_avn$AV.node < 5, ])
 
 hs_low_expr_dr_avn <- intersect(ortholog_df_zf$dr[ortholog_df_zf$hs %in% hs_low_expr_avn], dr_avn_e)
 mm_low_expr_dr_avn <- intersect(ortholog_df_zf$dr[ortholog_df_zf$mm %in% mm_low_expr_avn], dr_avn_e)
-zf_a_low_expr_avn <- intersect(zf_a_low_expr_avn, dr_avn_e)
 
-dr_avn_e_not_in_other <- dr_avn_e[
-  !(dr_avn_e %in% ortholog_df_zf$dr[ortholog_df_zf$hs %in% rownames(fccs)]) &
-  !(dr_avn_e %in% ortholog_df_zf$dr[ortholog_df_zf$mm %in% rownames(gccs)]) &
-  !(dr_avn_e %in% rownames(zcm_li))
-]
 
-zf_avn_specific_e <- union(
-  intersect(dr_avn_e, intersect(hs_low_expr_dr_avn, intersect(mm_low_expr_dr_avn, zf_a_low_expr_avn))),
-  dr_avn_e_not_in_other
-)
+zf_avn_specific_e <- intersect(dr_avn_e, intersect(hs_low_expr_dr_avn, mm_low_expr_dr_avn))
 
-# Nodes (SAN + AVN/AVC)
 
-percent_zf_a_nodes <- Percent_Expressing(zcm_li, dr_nodes_e, group_by = "sub_ccs")
+# nodes (SAN + AVC)
+
 percent_mm_e_nodes <- Percent_Expressing(gccs, ortholog_df_zf$mm[ortholog_df_zf$dr %in% dr_nodes_e], group_by = "sub_ccs")
 percent_hs_e_nodes <- Percent_Expressing(fccs, ortholog_df_zf$hs[ortholog_df_zf$dr %in% dr_nodes_e], group_by = "sub_ccs")
 
@@ -260,282 +460,217 @@ mm_low_expr_nodes <- rownames(percent_mm_e_nodes[
   percent_mm_e_nodes$SAN.tail < 5 &
   percent_mm_e_nodes$Compact.AVN < 5, ])
 
-zf_a_low_expr_nodes <- rownames(percent_zf_a_nodes[
-  percent_zf_a_nodes$SA.node < 5 &
-  percent_zf_a_nodes$AV.node < 5, ])
-
 hs_low_expr_dr_nodes <- intersect(ortholog_df_zf$dr[ortholog_df_zf$hs %in% hs_low_expr_nodes], dr_nodes_e)
 mm_low_expr_dr_nodes <- intersect(ortholog_df_zf$dr[ortholog_df_zf$mm %in% mm_low_expr_nodes], dr_nodes_e)
-zf_a_low_expr_nodes <- intersect(zf_a_low_expr_nodes, dr_nodes_e)
 
-dr_nodes_e_not_in_other <- dr_nodes_e[
-  !(dr_nodes_e %in% ortholog_df_zf$dr[ortholog_df_zf$hs %in% rownames(fccs)]) &
-  !(dr_nodes_e %in% ortholog_df_zf$dr[ortholog_df_zf$mm %in% rownames(gccs)]) &
-  !(dr_nodes_e %in% rownames(zcm_li))
-]
 
-zf_nodes_specific_e <- union(
-  intersect(dr_nodes_e, intersect(hs_low_expr_dr_nodes, intersect(mm_low_expr_dr_nodes, zf_a_low_expr_nodes))),
-  dr_nodes_e_not_in_other
-)
+zf_nodes_specific_e <- intersect(dr_nodes_e, intersect(hs_low_expr_dr_nodes, mm_low_expr_dr_nodes))
 
 ```
 
 # zebrafish adult specific
 ```{r}
+
 library(scCustomize)
 
-percent_zf_e_san <- Percent_Expressing(zcm_nahia, dr_san_a, group_by = "sub_ccs")
+# SAN 
+
+# get % expression of embryo SAN markers in all other datasets
+percent_zf_e_san <- Percent_Expressing(zcm_e, dr_san_a, group_by = "sub_ccs2")
 percent_mm_a_san <- Percent_Expressing(occs, ortholog_df_zf$mm[ortholog_df_zf$dr %in% dr_san_a], group_by = "sub_ccs")
 percent_hs_a_san <- Percent_Expressing(kccs, ortholog_df_zf$hs[ortholog_df_zf$dr %in% dr_san_a], group_by = "sub_ccs")
 
+# get low expression genes in each species
 hs_low_expr_san <- rownames(percent_hs_a_san[percent_hs_a_san$SA.node < 5, ])
 mm_low_expr_san <- rownames(percent_mm_a_san[percent_mm_a_san$SA.node < 5, ])
-zf_e_low_expr_san <- rownames(percent_zf_e_san[percent_zf_e_san$SA.node < 5, ])
+zf_e_low_expr_san <- rownames(percent_zf_e_san[percent_zf_e_san$X48.72hpf...SA.node < 5, ])
 
+# map human/mouse low expr to zebrafish genes
 hs_low_expr_dr_san <- ortholog_df_zf$dr[ortholog_df_zf$hs %in% hs_low_expr_san]
 mm_low_expr_dr_san <- ortholog_df_zf$dr[ortholog_df_zf$mm %in% mm_low_expr_san]
 
+# filter to SAN list
 hs_low_expr_dr_san <- intersect(hs_low_expr_dr_san, dr_san_a)
 mm_low_expr_dr_san <- intersect(mm_low_expr_dr_san, dr_san_a)
 zf_e_low_expr_san <- intersect(zf_e_low_expr_san, dr_san_a)
 
-dr_san_a_not_in_other <- dr_san_a[
-  !(dr_san_a %in% ortholog_df_zf$dr[ortholog_df_zf$hs %in% rownames(kccs)]) &
-  !(dr_san_a %in% ortholog_df_zf$dr[ortholog_df_zf$mm %in% rownames(occs)]) &
-  !(dr_san_a %in% rownames(zcm_nahia))
-]
+# final zebrafish embryo-specific SAN list
+zf_san_specific_a <- intersect(dr_san_a, intersect(hs_low_expr_dr_san, intersect(mm_low_expr_dr_san, zf_e_low_expr_san)))
 
-zf_san_specific_a <- union(
-  intersect(dr_san_a, intersect(hs_low_expr_dr_san, intersect(mm_low_expr_dr_san, zf_e_low_expr_san))),
-  dr_san_a_not_in_other
-)
-
-# AVN/AVC
-
-percent_zf_e_avn <- Percent_Expressing(zcm_nahia, dr_avn_a, group_by = "sub_ccs")
-percent_mm_a_avn <- Percent_Expressing(occs, ortholog_df_zf$mm[ortholog_df_zf$dr %in% dr_avn_a], group_by = "sub_ccs")
-percent_hs_a_avn <- Percent_Expressing(kccs, ortholog_df_zf$hs[ortholog_df_zf$dr %in% dr_avn_a], group_by = "sub_ccs")
-
-hs_low_expr_avn <- rownames(percent_hs_a_avn[percent_hs_a_avn$Compact.AV.node < 5, ])
-mm_low_expr_avn <- rownames(percent_mm_a_avn[percent_mm_a_avn$Compact.AV.node < 5, ])
-zf_e_low_expr_avn <- rownames(percent_zf_e_avn[percent_zf_e_avn$Atrioventricular.CMs < 5, ])
-
-hs_low_expr_dr_avn <- intersect(ortholog_df_zf$dr[ortholog_df_zf$hs %in% hs_low_expr_avn], dr_avn_a)
-mm_low_expr_dr_avn <- intersect(ortholog_df_zf$dr[ortholog_df_zf$mm %in% mm_low_expr_avn], dr_avn_a)
-zf_e_low_expr_avn <- intersect(zf_e_low_expr_avn, dr_avn_a)
-
-dr_avn_a_not_in_other <- dr_avn_a[
-  !(dr_avn_a %in% ortholog_df_zf$dr[ortholog_df_zf$hs %in% rownames(kccs)]) &
-  !(dr_avn_a %in% ortholog_df_zf$dr[ortholog_df_zf$mm %in% rownames(occs)]) &
-  !(dr_avn_a %in% rownames(zcm_nahia))
-]
-
-zf_avn_specific_a <- union(
-  intersect(dr_avn_a, intersect(hs_low_expr_dr_avn, intersect(mm_low_expr_dr_avn, zf_e_low_expr_avn))),
-  dr_avn_a_not_in_other
-)
-
-# Nodes (SAN + AVN/AVC)
-
-percent_zf_e_nodes <- Percent_Expressing(zcm_nahia, dr_nodes_a, group_by = "sub_ccs")
-percent_mm_a_nodes <- Percent_Expressing(occs, ortholog_df_zf$mm[ortholog_df_zf$dr %in% dr_nodes_a], group_by = "sub_ccs")
-percent_hs_a_nodes <- Percent_Expressing(kccs, ortholog_df_zf$hs[ortholog_df_zf$dr %in% dr_nodes_a], group_by = "sub_ccs")
-
-hs_low_expr_nodes <- rownames(percent_hs_a_nodes[
-  percent_hs_a_nodes$SA.node < 5 &
-  percent_hs_a_nodes$Compact.AV.node < 5, ])
-
-mm_low_expr_nodes <- rownames(percent_mm_a_nodes[
-  percent_mm_a_nodes$SA.node < 5 &
-  percent_mm_a_nodes$Compact.AV.node < 5, ])
-
-zf_e_low_expr_nodes <- rownames(percent_zf_e_nodes[
-  percent_zf_e_nodes$SA.node < 5 &
-  percent_zf_e_nodes$Atrioventricular.CMs < 5, ])
-
-hs_low_expr_dr_nodes <- intersect(ortholog_df_zf$dr[ortholog_df_zf$hs %in% hs_low_expr_nodes], dr_nodes_a)
-mm_low_expr_dr_nodes <- intersect(ortholog_df_zf$dr[ortholog_df_zf$mm %in% mm_low_expr_nodes], dr_nodes_a)
-zf_e_low_expr_nodes <- intersect(zf_e_low_expr_nodes, dr_nodes_a)
-
-dr_nodes_a_not_in_other <- dr_nodes_a[
-  !(dr_nodes_a %in% ortholog_df_zf$dr[ortholog_df_zf$hs %in% rownames(kccs)]) &
-  !(dr_nodes_a %in% ortholog_df_zf$dr[ortholog_df_zf$mm %in% rownames(occs)]) &
-  !(dr_nodes_a %in% rownames(zcm_nahia))
-]
-
-zf_nodes_specific_a <- union(
-  intersect(dr_nodes_a, intersect(hs_low_expr_dr_nodes, intersect(mm_low_expr_dr_nodes, zf_e_low_expr_nodes))),
-  dr_nodes_a_not_in_other
-)
 
 ```
 
-
+# compare zebrafish embryo and adult SAN
 ```{r}
 
-library(tidyverse)
-library(ComplexUpset)
+dr_san_a_vs_e_raw <- FindMarkers(merged, ident.1='SA node (6-12mo)', ident.2 = 'SA node (48-72hpf)')
 
-clean_vec <- function(x) sort(unique(x[!is.na(x)]))
+dr_san_a_vs_e <- dr_san_a_vs_e_raw %>%
+  filter(
+    p_val_adj <= 0.05,
+    (avg_log2FC >= log2(1.5) | avg_log2FC <= -log2(1.5)),
+    (pct.1 >= 0.1 | pct.2 >= 0.1), (pct.1 > 0 & pct.2 > 0)
+  ) %>%
+  rownames_to_column(var = "gene") %>%
+  arrange(
+    desc(avg_log2FC > 0)   # all rows with avg_log2FC>0 first, then the rest
+  )
 
-# helper function to return all paralogs orthologous to a gene list
-get_dr_marker_paralogs <- function(hgene, dr_pool_emb, dr_pool_ad){
-    cands <- hs_to_dr_list[[hgene]] %||% character(0)
-    intersect(cands, union(dr_pool_emb, dr_pool_ad))
-}
+# keep only genes that are significantly different b/w embryo and adult, and SAN markers in either
+dr_san_a_vs_e_filt_embhigh <- dr_san_a_vs_e_raw %>%
+  filter(
+    p_val_adj <= 0.05,
+    abs(avg_log2FC) >= log2(1.5),
+    pct.1 >= 0.1 | pct.2 >= 0.1
+  ) %>%
+  rownames_to_column(var = "gene") %>%
+  filter(gene %in% union(dr_san_e, dr_san_a), avg_log2FC < 0)
 
-# build all shared gene lists
-build_shared_lists <- function(dr_emb, dr_ad,
-                               dr_to_hs, mm_to_hs,
-                               hs_emb, hs_ad,
-                               mm_emb, mm_ad){
-    
-    dr_emb_to_hs <- dr_to_hs[dr_emb]
-    dr_ad_to_hs  <- dr_to_hs[dr_ad]
-    
-    shared_hs_dr_emb <- intersect(hs_emb, dr_emb_to_hs)
-    shared_hs_dr_ad  <- intersect(hs_ad,  dr_ad_to_hs)
-    
-    shared_mm_dr_emb <- intersect(mm_emb, dr_emb_to_hs) |> discard(is.na)
-    shared_mm_dr_ad  <- intersect(mm_ad,  dr_ad_to_hs)  |> discard(is.na)
-    
-    valid_dr_emb_hs <- discard(dr_emb_to_hs, is.na)
-    valid_dr_ad_hs  <- discard(dr_ad_to_hs,  is.na)
-    
-    shared_zf_dr_emb_hs <- names(valid_dr_emb_hs)[valid_dr_emb_hs %in% hs_emb]
-    shared_zf_dr_ad_hs  <- names(valid_dr_ad_hs) [valid_dr_ad_hs  %in% hs_ad]
-    shared_zf_dr_emb_mm <- names(valid_dr_emb_hs)[valid_dr_emb_hs %in% mm_emb]
-    shared_zf_dr_ad_mm  <- names(valid_dr_ad_hs) [valid_dr_ad_hs  %in% mm_ad]
-    
-    shared_dr_only <- intersect(dr_emb, dr_ad)
-    
-    whitelist_zf <- unique(c(shared_zf_dr_emb_hs, shared_zf_dr_ad_hs,
-                             shared_zf_dr_emb_mm, shared_zf_dr_ad_mm,
-                             shared_dr_only))
-    
-    list(
-        whitelist_zf = whitelist_zf
-    )
-}
+dr_san_a_vs_e_filt_adulthigh <- dr_san_a_vs_e_raw %>%
+  filter(
+    p_val_adj <= 0.05,
+    abs(avg_log2FC) >= log2(1.5),
+    pct.1 >= 0.1 | pct.2 >= 0.1
+  ) %>%
+  rownames_to_column(var = "gene") %>%
+  filter(gene %in% union(dr_san_e, dr_san_a), avg_log2FC > 0)
 
-# region-specific shared lists
-san_shared <- build_shared_lists(dr_san_e,   dr_san_a,
-                                   dr_to_hs, mm_to_hs,
-                                   hse_san,  hsa_san,
-                                   mme_san_to_hs, mmp_san_to_hs)
 
-avn_shared <- build_shared_lists(dr_avn_e,   dr_avn_a,
-                                   dr_to_hs, mm_to_hs,
-                                   hse_avn,  hsa_avn,
-                                   mme_avn_to_hs, mmp_avn_to_hs)
 
-nodes_shared <- build_shared_lists(dr_nodes_e, dr_nodes_a,
-                                   dr_to_hs, mm_to_hs,
-                                   hse_nodes, hsa_nodes,
-                                   mme_nodes_to_hs, mmp_nodes_to_hs)
 
-# helper function to build tablesk eyed by zebrafish genes
+ic <- read.csv('group-177.csv', header=F)
+ic <- ic[-c(1, 2), ]
+ic <- ic$V2
 
-build_table_zf_key <- function(dr_emb, dr_ad, # zebrafish gene lists
-                               mm_emb_to_hs, mm_ad_to_hs, # human ortholog lists
-                               hs_emb, hs_ad,
-                               whitelist_zf,
-                               dr_to_hs){
+ion_channel_dr_genes <- unlist(hs_to_dr_list[ic])
+ion_channel_dr_genes <- unique(ion_channel_dr_genes)
 
-  # all zebrafish genes seen in embryo or adult
-  zf_genes <- union(dr_emb, dr_ad)
+tfs <- read.table('https://humantfs.ccbr.utoronto.ca/download/v_1.01/TF_names_v_1.01.txt')
+tfs <- tfs$V1
 
-  tbl <- tibble(Gene = zf_genes) %>%
-    mutate(
-      human_ortholog = dr_to_hs[Gene] %||% NA_character_,
+tf_dr_genes <- unlist(hs_to_dr_list[tfs])
+tf_dr_genes <- unique(tf_dr_genes)
 
-      # presence flags (zebrafish in native gene space, others via ortholog)
-      ZF_embryo       = as.integer(Gene %in% dr_emb),
-      ZF_adult        = as.integer(Gene %in% dr_ad),
-      Mouse_embryo    = as.integer(!is.na(human_ortholog) &
-                                   human_ortholog %in% mm_emb_to_hs),
-      Mouse_postnatal = as.integer(!is.na(human_ortholog) &
-                                   human_ortholog %in% mm_ad_to_hs),
-      Human_fetus     = as.integer(!is.na(human_ortholog) &
-                                   human_ortholog %in% hs_emb),
-      Human_adult     = as.integer(!is.na(human_ortholog) &
-                                   human_ortholog %in% hs_ad)
-    ) %>%
+lig1 <- read.csv('ligands_group.csv', header=F)
+lig1 <- lig1[-c(1, 2), ]
+lig2 <- read.csv('ligands_subgroups.csv', header=F)
+lig2 <- lig2[-c(1, 2), ]
+lig2 <- lig2[, !names(lig2) %in% "V7"]
+lig <- rbind(lig1, lig2)
+lig <- lig$V2
 
-    # counts & stage summary
-    mutate(
-      n_sets       = ZF_embryo + ZF_adult +
-                     Mouse_embryo + Mouse_postnatal +
-                     Human_fetus  + Human_adult,
-      sets_present = pmap_chr(across(ZF_embryo:Human_adult),
-                              ~ paste(names(cur_data())[c(...) == 1],
-                                      collapse = ";"))
-    ) %>%
+lig_dr_genes <- unlist(hs_to_dr_list[lig])
+lig_dr_genes <- unique(lig_dr_genes)
 
-    ## filters
-    filter(
-      # keep if 2 or more of the 6 datasets or in both zebrafish
-      n_sets >= 2 | (ZF_embryo == 1 & ZF_adult == 1)
-    ) %>%
-    filter(Gene %in% whitelist_zf) # region-specific relevance
-}
+sarc <- read.table('sarcomere_genes.txt', header=T, fill = TRUE, stringsAsFactors = FALSE)
+sarc <- unique(sarc$Gene.Marker)
+sarc <- ortholog_df[ortholog_df$mm %in% sarc,]$hs
 
-# SAN/AVN/nodes tables
+sarc_dr_genes <- unlist(hs_to_dr_list[sarc])
+sarc_dr_genes <- unique(sarc_dr_genes)
 
-san_tbl   <- build_table_zf_key(
-  dr_san_e, dr_san_a,
-  mme_san_to_hs, mmp_san_to_hs,
-  hse_san, hsa_san,
-  san_shared$whitelist_zf,
-  dr_to_hs
+library(ComplexHeatmap)
+library(circlize)
+library(RColorBrewer)
+
+expr_mat <- GetAssayData(merged, slot = "scale.data")[dr_san_a_vs_e$gene, 
+              WhichCells(merged, idents = c('48-72hpf - SA node', '6-12mo - SA node'))]
+
+expr_mat_t <- t(as.matrix(expr_mat))
+
+# highlight_genes <- colnames(expr_mat_t)[colnames(expr_mat_t) %in% c(tf_dr_genes, ion_channel_dr_genes, lig_dr_genes)]
+# 
+# # column indices for annotation
+# col_idx <- which(colnames(expr_mat_t) %in% highlight_genes)
+
+fig <- Heatmap(
+  expr_mat_t[nrow(expr_mat_t):1, ncol(expr_mat_t):1],
+  name = "Scaled\nexpression",
+  show_row_names = FALSE,
+  show_column_names = FALSE,
+  cluster_rows = FALSE,
+  cluster_columns = FALSE,
+  col = colorRamp2(c(-3, 0, 3), c("#2166ac", "#fff", "#b2182b")),
+  heatmap_legend_param = list(
+    title_gp = gpar(fontface = "plain")
+  )
 )
 
-avn_tbl   <- build_table_zf_key(
-  dr_avn_e, dr_avn_a,
-  mme_avn_to_hs, mmp_avn_to_hs,
-  hse_avn, hsa_avn,
-  avn_shared$whitelist_zf,
-  dr_to_hs
+tiff(
+  filename = "dr_a_vs_e_heatmap.tiff",
+  width = 12,
+  height = 5,
+  units = "in",
+  res = 600
 )
 
-nodes_tbl <- build_table_zf_key(
-  dr_nodes_e, dr_nodes_a,
-  mme_nodes_to_hs, mmp_nodes_to_hs,
-  hse_nodes, hsa_nodes,
-  nodes_shared$whitelist_zf,
-  dr_to_hs
+draw(fig)
+
+dev.off()
+
+fig <- DotPlot(
+  merged,
+  features = c(unique(unlist(lapply(list(
+    tf_dr_genes,
+    lig_dr_genes,
+    ion_channel_dr_genes,
+    sarc_dr_genes
+  ),
+  function(x)
+    intersect(x, dr_san_a_vs_e_filt_embhigh$gene)))),
+  unique(unlist(lapply(list(
+    tf_dr_genes,
+    lig_dr_genes,
+    ion_channel_dr_genes,
+    sarc_dr_genes
+  ),
+  function(x)
+    intersect(x, dr_san_a_vs_e_filt_adulthigh$gene))))),
+  idents = c(
+    "SA node (48-72hpf)",
+    "SA node (6-12mo)",
+    "AVC (48-72hpf)",
+    "aCM (48-72hpf)",
+    "aCM (6-12mo)",
+    "vCM (48-72hpf)",
+    "vCM (6-12mo)"
+  ),
+  cols = c('whitesmoke', '#386641'),
+  col.min = -1,
+  col.max = 1.5,
+  dot.scale = 10,
+  dot.min = -0.10
+) &
+  scale_size_area(
+    limits = c(0, 100),
+    max_size = 6.5,
+    breaks = c(0, 20, 40, 60, 80, 100)
+  ) &
+  theme(
+    axis.line = element_blank(),
+    panel.border = element_rect(
+      color = "black",
+      fill = NA,
+      size = 1
+    ),
+    axis.title = element_blank(),
+    axis.text.x = element_text(
+      face = 'italic',
+      hjust = 1,
+      vjust = 0.5,
+      size = 14,
+      angle = 90
+    ),
+    axis.text.y = element_text(size=14)
+  ) & NoLegend()
+
+ggsave(
+  "dr_embadult_combined_dotplot.tiff",
+  fig,
+  dpi = 600,
+  width = 10,
+  height = 3.25
 )
-
-patterns <- list(
-  all6          = c("ZF_embryo","ZF_adult","Mouse_embryo",
-                    "Mouse_postnatal","Human_fetus","Human_adult"),
-  zemb_zad_memb_mpost = c("ZF_embryo","ZF_adult","Mouse_embryo","Mouse_postnatal"),
-  zemb_zad_hemb_hpost = c("ZF_embryo","ZF_adult","Human_fetus","Human_adult"),
-  zemb_memb_hemb      = c("ZF_embryo","Mouse_embryo","Human_fetus"),
-  zad_mpost_hpost     = c("ZF_adult","Mouse_postnatal","Human_adult"),
-  zemb_memb           = c("ZF_embryo","Mouse_embryo"),
-  zemb_hemb           = c("ZF_embryo","Human_fetus"),
-  zad_mpost           = c("ZF_adult","Mouse_postnatal"),
-  zad_hpost           = c("ZF_adult","Human_adult")
-)
-
-## helper: keep rows that are 1 in all “yes” column
-keep_at_least <- function(tbl, yes_cols){
-  tbl %>%
-    filter(if_all(all_of(yes_cols), ~ .x == 1))
-}
-
-## dictionary of filtered tables for each region
-filter_region <- function(tbl){
-  imap(patterns, ~ keep_at_least(tbl, .x))
-}
-
-# re-run for each region
-san_sets   <- filter_region(san_tbl)
-avn_sets   <- filter_region(avn_tbl)
-nodes_sets <- filter_region(nodes_tbl)
-
 
 ```
 
@@ -749,119 +884,39 @@ genes_per_combo_mdk <- genes_per_combo_mdk %>%
 
 ```
 
-# plot heatmaps - SAN/AVC and trabeculae datasets
+# umap with zebrafish and medaka trabeculae
 ```{r}
 
-avg_zcm_nahia_expr_full <- AverageExpression(
-  zcm_nahia,
-  assays = "RNA",
-  slot = "data",
-  features = NULL,
-  group.by = "sub_ccs"
-)$RNA
+zfmdk <- merge(zf_uninjured, mdk_uninjured)
 
-heat_data_e <- avg_zcm_nahia_expr_full[rownames(avg_zcm_nahia_expr_full) %in% c(dr_nodes_e, dr_san_e, dr_avn_e), ]
+DefaultAssay(zfmdk) <- "RNA"
+zfmdk <- NormalizeData(zfmdk)
+zfmdk <- FindVariableFeatures(zfmdk)
 
-heat_data_e <- t(scale(t(heat_data_e)))
-heat_data_e <- heat_data_e[c(dr_nodes_e, dr_san_e, dr_avn_e), ]
-colnames(heat_data_e)[colnames(heat_data_e) == "Atrioventricular CMs"] <- "AVC"
-
-
-library(pheatmap)
-
-fig <- pheatmap(
-  heat_data_e,
-  cluster_rows = F,
-  cluster_cols = F,
-  color = colorRampPalette(c('#f7fbff', '#9ecae1', '#084594'))(1000),
-  border_color = NA,
-  show_rownames = F,
-  fontsize_col = 14,
-  angle_col=0,
-  legend = F
+anchors <- FindIntegrationAnchors(
+  object.list = list(zf_uninjured, mdk_uninjured),
+  normalization.method = "LogNormalize",
+  reduction            = "rpca"
+)
+zfmdk <- IntegrateData(
+  anchorset             = anchors,
+  normalization.method  = "LogNormalize"
 )
 
-ggsave('heatmap_zf_embryo.tiff', fig, width=3, height=12.5, dpi=600)
+DefaultAssay(zfmdk) <- "integrated"
 
-avg_zcm_li_expr_full <- AverageExpression(
-  zcm_li,
-  assays = "RNA",
-  slot = "data",
-  features = NULL,
-  group.by = "sub_ccs"
-)$RNA
+zfmdk <- ScaleData(zfmdk, features=rownames(zfmdk))
+zfmdk <- RunPCA(zfmdk)
+zfmdk <- FindNeighbors(zfmdk, dims=1:20)
+zfmdk <- RunUMAP(zfmdk, dims=1:20)
 
-heat_data_a <- avg_zcm_li_expr_full[rownames(avg_zcm_li_expr_full) %in% c(dr_nodes_a, dr_san_a, dr_avn_a), ]
+zfmdk <- SetIdent(zfmdk, WhichCells(zfmdk, expression = species == 'medaka' & cell_class == 'Cortical'), 'Cortical (medaka)')
+zfmdk <- SetIdent(zfmdk, WhichCells(zfmdk, expression = species == 'zebrafish' & cell_class == 'Cortical'), 'Cortical (zebrafish)')
+zfmdk <- SetIdent(zfmdk, WhichCells(zfmdk, expression = species == 'medaka' & cell_class == 'Trabecular'), 'Trabeculae (medaka)')
+zfmdk <- SetIdent(zfmdk, WhichCells(zfmdk, expression = species == 'zebrafish' & cell_class == 'Trabecular'), 'Trabeculae (zebrafish)')
 
-heat_data_a <- t(scale(t(heat_data_a)))
-heat_data_a <- heat_data_a[c(dr_nodes_a, dr_san_a, dr_avn_a), c("SA node", "AVC", "aCM", "vCM")]
+fig <-DimPlot(zfmdk, cols = c('#1b4965', '#62b6cb', '#857D8C', '#CCC9CF'), pt.size=1.3) & NoAxes() & theme(legend.text = element_text(size = 22))
 
-fig <- pheatmap(
-  heat_data_a,
-  cluster_rows = F,
-  cluster_cols = F,
-  color = colorRampPalette(c('#f7fbff', '#9ecae1', '#084594'))(1000),
-  border_color = NA,
-  show_rownames = F,
-  fontsize_col = 14,
-  angle_col=0,
-  legend = F
-)
-
-ggsave('heatmap_zf_adult.tiff', fig, width=3, height=12.5, dpi=600)
-
-fig <- pheatmap(
-  heat_data_a,
-  cluster_rows = F,
-  cluster_cols = F,
-  color = colorRampPalette(c('#f7fbff', '#9ecae1', '#084594'))(1000),
-  border_color = NA,
-  show_rownames = F,
-  fontsize_col = 14,
-  angle_col=0
-)
-
-ggsave('heatmap_zf_adult_legend.tiff', fig, width=3, height=12.5, dpi=600)
-
-avg_carey_expr_full <- AverageExpression(
-  subset(mc, subset = group %in% c("zebrafish_uninjured", "medaka_uninjured")),
-  assays = "RNA",
-  slot = "data",
-  features = NULL,
-  group.by = "cell_class"
-)$RNA
-
-heat_data_carey <- avg_carey_expr_full[rownames(avg_carey_expr_full) %in% c(zf_trbc, mdk_trbc, zf_cort, mdk_cort), ]
-
-heat_data_carey <- t(scale(t(heat_data_carey)))
-heat_data_carey <- heat_data_carey[c(zf_trbc, mdk_trbc, zf_cort, mdk_cort), c("Trabecular", "Cortical")]
-
-
-library(pheatmap)
-
-fig <- pheatmap(
-  t(heat_data_carey),
-  cluster_rows = F,
-  cluster_cols = F,
-  color = colorRampPalette(c('#f2f0f7', '#bcbddc', '#756bb1'))(1000),
-  border_color = NA,
-  show_colnames = F,
-  show_rownames=F,
-  legend = F
-)
-
-ggsave('heatmap_zf_mdk_trbc_cort.tiff', fig, width=7, height=2.5, dpi=600)
-
-fig <- pheatmap(
-  t(heat_data_carey),
-  cluster_rows = F,
-  cluster_cols = F,
-  color = colorRampPalette(c('#f2f0f7', '#bcbddc', '#756bb1'))(1000),
-  border_color = NA,
-  show_colnames = F,
-  show_rownames=F
-)
-
-ggsave('heatmap_zf_mdk_trbc_cort_legend.tiff', fig, width=7, height=2.5, dpi=600)
+ggsave('/Users/marwanbakr/docs/kimlab/manuscripts/2024 CCS comparative/figures/fig7/zf_mdk_trbc_cort_umap.tiff', fig, dpi=600, height=7.5, width=12)
 
 ```
