@@ -16,10 +16,10 @@ gccs <- readRDS('goodyer_ccs_20240910.rds') # Goodyer et al, Circ Res 2019 (mous
 kccs <- readRDS('kanemaru_ccs_20240910.rds') # Kanemaru et al, Nature 2023 (human adult)
 occs <- readRDS('20231212_ccs_object.rds') # Oh et al, Nat Commun 2024 (mouse postnatal)
 lccs <- readRDS('protze_fetal_san_pacemakeronly.rds')
-zccs_nahia <- readRDS('zebrafish_ccs_20250401.rds')
-zccs_li <- readRDS('zebrafish_ccs_adult_li.rds')
-zf_mdk_trbc <- readRDS('/zf_mdk_trbc_20250515.rds')
-rccs <- readRDS('/rat_ccs_20250401.rds')
+zccs_e <- readRDS('zebrafish_ccs_20250706.rds')
+zccs_a <- readRDS('zebrafish_ccs_adult_li.rds')
+zf_mdk_trbc <- readRDS('zf_mdk_trbc_20250706.rds')
+rccs <- readRDS('rat_ccs_20250401.rds')
 
 # all cm objects
 
@@ -73,11 +73,11 @@ fig <- DimPlot(rccs, cols=c('#861D21', '#F4C542', '#9DC183'), group.by='sub_ccs'
 
 ggsave('/Users/marwanbakr/docs/kimlab/manuscripts/2024 CCS comparative/figures/fig1/rat_umap_no_legend.tiff', fig, width=7, height=5)
 
-fig <- DimPlot(zccs_nahia, cols=c('#861D21', '#F4C542'), group.by='sub_ccs', pt.size=2.6) & NoAxes() & NoLegend() & theme(plot.title=element_blank())
+fig <- DimPlot(zccs_e, cols=c('#861D21', '#F4C542'), group.by='sub_ccs2', pt.size=2.6) & NoAxes() & NoLegend() & theme(plot.title=element_blank())
 
 ggsave('/Users/marwanbakr/docs/kimlab/manuscripts/2024 CCS comparative/figures/fig1/zebrafish_umap_no_legend.tiff', fig, width=7, height=5)
 
-fig <- DimPlot(zccs_li, cols=c('#861D21', '#F4C542'), group.by='sub_ccs', pt.size=2) & NoAxes() & NoLegend() & theme(plot.title=element_blank())
+fig <- DimPlot(zccs_a, cols=c('#861D21'), group.by='sub_ccs', pt.size=2.6) & NoAxes() & NoLegend() & theme(plot.title=element_blank())
 
 ggsave('/Users/marwanbakr/docs/kimlab/manuscripts/2024 CCS comparative/figures/fig1/zebrafish_adult_nodes_umap_no_legend.tiff', fig, width=7, height=5)
 
@@ -193,7 +193,7 @@ ortholog_common_df_zf <- ortholog_df_zf %>%
     mm %in% rownames(gccs),
     mm %in% rownames(occs),
     mm %in% rownames(rccs),
-    dr %in% intersect(rownames(zccs_nahia), intersect(rownames(zccs_li), rownames(zf_mdk_trbc)))
+    dr %in% intersect(rownames(zccs_e), intersect(rownames(zccs_a), rownames(zf_mdk_trbc)))
   )
 
 ortholog_common_df_zf <- ortholog_common_df_zf %>%
@@ -233,11 +233,11 @@ process_ccs_dataset <- function(seurat_obj, ortholog_common_df, species_column, 
     common_obj@meta.data$sub_ccs <- paste0(common_obj@meta.data$sub_ccs, " (H,E)")
   } else if (dataset_name == "rcss") {
     common_obj@meta.data$sub_ccs <- paste0(common_obj@meta.data$sub_ccs, " (R,A)")
-  } else if (dataset_name == "zccs_nahia") {
+  } else if (dataset_name == "zccs_e") {
     common_obj@meta.data$sub_ccs <- paste0(common_obj@meta.data$sub_ccs, " (Z,E)")
   } else if (dataset_name == "lccs") {
     common_obj@meta.data$sub_ccs <- paste0(common_obj@meta.data$sub_ccs, " (H,E2)")
-  } else if (dataset_name == "zccs_li") {
+  } else if (dataset_name == "zccs_a") {
     common_obj@meta.data$sub_ccs <- paste0(common_obj@meta.data$sub_ccs, " (Z,A)")
   } else if (dataset_name == "zf_trbc") {
     common_obj@meta.data$sub_ccs <- paste0(common_obj@meta.data$sub_ccs, " (Z,A)")
@@ -257,15 +257,15 @@ avg_lccs_expr <- process_ccs_dataset(lccs, ortholog_common_df_zf, species_column
 avg_gccs_expr <- process_ccs_dataset(gccs, ortholog_common_df_zf, species_column = 'mm', dataset_name = 'gccs')
 avg_occs_expr <- process_ccs_dataset(subset(occs, idents=c('Proliferative CCS', 'vCM'), invert=T), ortholog_common_df_zf, species_column = 'mm', dataset_name = 'occs') # not including mouse postnatal proliferative CCS
 avg_rccs_expr <- process_ccs_dataset(rccs, ortholog_common_df_zf, species_column = 'mm', dataset_name = 'rcss')
-avg_zccs_nahia_expr <- process_ccs_dataset(zccs_nahia, ortholog_common_df_zf, species_column = 'dr', dataset_name = 'zccs_nahia')
+avg_zccs_e_expr <- process_ccs_dataset(zccs_e, ortholog_common_df_zf, species_column = 'dr', dataset_name = 'zccs_e')
 
 zf_mdk_trbc$sub_ccs <- zf_mdk_trbc$cell_class
-avg_zccs_li_expr <-
+avg_zccs_a_expr <-
   process_ccs_dataset(
-    JoinLayers(merge(zccs_li, zf_mdk_trbc)),
+    JoinLayers(merge(zccs_a, zf_mdk_trbc)),
     ortholog_common_df_zf,
     species_column = 'dr',
-    dataset_name = 'zccs_li'
+    dataset_name = 'zccs_a'
   )
 
 all_expr_data <- list(
@@ -275,8 +275,8 @@ all_expr_data <- list(
   "occs" = avg_occs_expr,
   "kccs" = avg_kccs_expr,
   "rcss" = avg_rccs_expr,
-  "zccs_nahia" = avg_zccs_nahia_expr,
-  "zccs_li" = avg_zccs_li_expr
+  "zccs_e" = avg_zccs_e_expr,
+  "zccs_a" = avg_zccs_a_expr
 )
 
 # fxn to create empty correlation matrix placeholders with correct dimensions
@@ -324,7 +324,7 @@ dist_mtx <- as.dist(1 - cor_mtx_combined)
 # hierarchical clustering
 hc <- hclust(dist_mtx, method = "average")
 
-tiff('20250515_dendrogram_all_linear_pearson.tiff', 
+tiff('20250809_dendrogram_all_linear_pearson.tiff', 
      width = 12, height = 5.25, units = "in", res = 1200)
 
 plot(hc, main = "", xlab = "", ylab="", sub = "", cex = 0.8, labels=F, axes=F, lwd=0.5)

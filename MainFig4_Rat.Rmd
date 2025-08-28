@@ -4,38 +4,183 @@ output: html_document
 date: "2025-06-11"
 ---
 
+# plot rat UMAP and marker-based annotation
+```{r}
+
+fig <-
+  DimPlot(
+    racm,
+    cols = c("#861d21", "#F4C542", "#9DC183", "#5E6367", "#B0B4B9"), 
+    pt.size = 1.5
+  ) &
+  NoAxes() &
+  theme(plot.title = element_blank(), legend.text = element_text(size = 24))
+
+ggsave('/Users/marwanbakr/docs/kimlab/manuscripts/2024 CCS comparative/figures/fig6/san_avn_acm_umap.tiff', fig, dpi=600, height=7, width=11)
+
+fig <-
+  VlnPlot(
+    racm,
+    c(
+      'Hcn4',
+      'Cpne5',
+      'Cacna2d2',
+      'Shox2',
+      'Rspo3',
+      'Hs3st3a1',
+      'Myl7',
+      'Myl4',
+      'Myl3',
+      'Myl2'
+    ),
+    stack = T,
+    flip = T,
+    fill.by = 'ident',
+    cols = c("#861d21", "#F4C542", "#9DC183", "#5E6367", "#B0B4B9")
+  ) &
+  stat_summary(
+    fun = mean,
+    geom = 'crossbar',
+    width = 0.1,
+    linewidth = 0.25,
+    colour = "black"
+  ) &
+  theme(
+    axis.title.x = element_blank(),
+    axis.ticks.length.x = unit(0.1, "cm"),
+    axis.ticks.length.y = unit(0.1, "cm"),
+    strip.text = element_text(hjust = 0, face = "italic", size=18),
+    axis.text.x = element_text(size=18),
+    axis.title.y = element_text(size=18)
+  ) &
+  NoLegend()
+
+ggsave('/Users/marwanbakr/docs/kimlab/manuscripts/2024 CCS comparative/figures/fig6/markers_vlnplot.tiff', fig, dpi=600, height=7, width=5)
+
+fig <-
+  VlnPlot(
+    racm,
+    c(
+      'Hcn4',
+      'Cpne5',
+      'Cacna2d2',
+      'Shox2',
+      'Rspo3',
+      'Hs3st3a1',
+      'Myl7',
+      'Myl4',
+      'Myl3',
+      'Myl2'
+    ),
+    stack = T,
+    fill.by = 'ident',
+    cols = rev(c("#861d21", "#F4C542", "#9DC183", "#5E6367", "#B0B4B9"))
+  ) &
+  stat_summary(
+    fun = mean,
+    geom = 'crossbar',
+    width = 0.1,
+    linewidth = 0.25,
+    colour = "black"
+  ) &
+  theme(
+    axis.title.y = element_blank(),
+    axis.ticks.length.x = unit(0.1, "cm"),
+    axis.ticks.length.y = unit(0.1, "cm"),
+    strip.text = element_text(hjust = 0, face = "italic", size=0),
+    axis.text.y = element_text(size=18),
+    axis.title.x = element_text(size=18, margin = margin(b = -5,  unit = "mm")),
+    strip.placement = 'outside'
+  ) &
+  scale_x_continuous(position = "top") &
+  NoLegend()
+
+ggsave('/Users/marwanbakr/docs/kimlab/manuscripts/2024 CCS comparative/figures/fig6/markers_vlnplot_horizontal.tiff', fig, dpi=600, height=4.5, width=10)
+
+fig <-
+  VlnPlot(
+    racm,
+    c(
+      'Hcn4',
+      'Cpne5',
+      'Cacna2d2',
+      'Shox2',
+      'Rspo3',
+      'Hs3st3a1',
+      'Myl7',
+      'Myl4',
+      'Myl3',
+      'Myl2'
+    ),
+    stack = T,
+    fill.by = 'ident',
+    cols = rev(c("#861d21", "#F4C542", "#9DC183", "#5E6367", "#B0B4B9"))
+  ) &
+  stat_summary(
+    fun = mean,
+    geom = 'crossbar',
+    width = 0.1,
+    linewidth = 0.25,
+    colour = "black"
+  ) &
+  theme(
+    axis.title.y = element_blank(),
+    axis.ticks.length.x = unit(0.1, "cm"),
+    axis.ticks.length.y = unit(0.1, "cm"),
+    strip.text = element_text(hjust = 0, face = "italic", size=18),
+    axis.text.y = element_text(size=18),
+    axis.title.x = element_text(size=18, margin = margin(b = -5,  unit = "mm")),
+    strip.placement = 'outside'
+  ) &
+  scale_x_continuous(position = "top") & NoLegend()
+
+ggsave('/Users/marwanbakr/docs/kimlab/manuscripts/2024 CCS comparative/figures/fig6/markers_vlnplot_horizontal_legend.tiff', fig, dpi=600, height=4.5, width=10)
+
+fig <- DimPlot(rccs, cols=c('#861D21', '#F4C542', '#9DC183'), group.by='sub_ccs', pt.size=2) & NoAxes() & NoLegend() & theme(plot.title=element_blank())
+
+ggsave('/Users/marwanbakr/docs/kimlab/manuscripts/2024 CCS comparative/figures/fig6/rat_ccs_umap_no_legend.tiff', fig, width=7, height=5)
+
+fig <- FeaturePlot(rccs, c('Myl7', 'Myl2'), cols=c('lightgrey', '#003049'), pt.size=1.8) & NoAxes() & theme(plot.title=element_blank(), legend.text=element_text(size=18))
+
+ggsave('/Users/marwanbakr/docs/kimlab/manuscripts/2024 CCS comparative/figures/fig6/myl2_7_umap.tiff', fig, dpi=600, height=3.8, width=12.5)
+
+```
+
+
 # find rat markers
 ```{r}
 
+Idents(racm) <- racm$sub_ccs
+
 # criteria: adjusted P < 0.05, pct expression in cell type > 10, absolute fold change > 1.5
 
-mark_san_rat <- FindMarkers(rcm, ident.1='SA node', ident.2='SAN_aCM', only.pos=T, min.pct=0.1)
+mark_san_rat <- FindMarkers(racm, ident.1='SA node', ident.2='SAN_aCM', only.pos=T, min.pct=0.1)
 mark_san_rat <- mark_san_rat %>% filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1 >= 0.1) # for FC > 1.5
 
-mark_avn_rat <- FindMarkers(rcm, ident.1='Compact AV node', ident.2='AVN_aCM', only.pos=T, min.pct=0.1)
+mark_avn_rat <- FindMarkers(racm, ident.1='Compact AV node', ident.2='AVN_aCM', only.pos=T, min.pct=0.1)
 mark_avn_rat <- mark_avn_rat %>% filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1 >= 0.1) # for FC > 1.5
 
-mark_nodes_rat <- FindMarkers(rcm, ident.1=c('SA node', 'Compact AV node'), ident.2=c('SAN_aCM', 'AVN_aCM'), only.pos=T, min.pct=0.1)
+mark_nodes_rat <- FindMarkers(racm, ident.1=c('SA node', 'Compact AV node'), ident.2=c('SAN_aCM', 'AVN_aCM'), only.pos=T, min.pct=0.1)
 mark_nodes_rat <- mark_nodes_rat %>% filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1 >= 0.1) # for FC > 1.5
 
-mark_lnb_rat <- FindMarkers(rcm, ident.1 = 'Lower nodal bundle', ident.2 = 'AVN_aCM', only.pos = TRUE, min.pct = 0.1)
+mark_lnb_rat <- FindMarkers(racm, ident.1 = 'Lower nodal bundle', ident.2 = 'AVN_aCM', only.pos = TRUE, min.pct = 0.1)
 mark_lnb_rat <- mark_lnb_rat %>% filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1 >= 0.1)
 
-rat_san_vs_avn <- FindMarkers(rcm, ident.1='SA node', ident.2=c('Compact AV node', 'Lower nodal bundle'), only.pos=T, min.pct=0.1)
+rat_san_vs_avn <- FindMarkers(racm, ident.1='SA node', ident.2=c('Compact AV node', 'Lower nodal bundle'), only.pos=T, min.pct=0.1)
 rat_san_vs_avn <- rat_san_vs_avn %>% filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1 >= 0.1)
 
-rat_avn_vs_san <- FindMarkers(rcm, ident.1='Compact AV node', ident.2=c('SA node', 'Lower nodal bundle'), only.pos=T, min.pct=0.1)
-rat_avn_vs_san <- rat_avn_vs_san %>% filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1 >= 0.1)
+rat_avn_vs_ccs <- FindMarkers(racm, ident.1='Compact AV node', ident.2=c('SA node', 'Lower nodal bundle'), only.pos=T, min.pct=0.1)
+rat_avn_vs_ccs <- rat_avn_vs_ccs %>% filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1 >= 0.1)
 
-rat_nodes_vs_lnb <- FindMarkers(rcm, ident.1=c('SA node', 'Compact AV node'), ident.2=c('Lower nodal bundle'), only.pos=T, min.pct=0.1)
+rat_nodes_vs_lnb <- FindMarkers(racm, ident.1=c('SA node', 'Compact AV node'), ident.2=c('Lower nodal bundle'), only.pos=T, min.pct=0.1)
 rat_nodes_vs_lnb <- rat_nodes_vs_lnb %>% filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1 >= 0.1)
 
-rat_lnb_vs_ccs <- FindMarkers(rccs, ident.1 = 'Lower nodal bundle', only.pos = TRUE, min.pct = 0.1)
-rat_lnb_vs_ccs <- rat_lnb_vs_rcm %>% filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1 >= 0.1)
+rat_lnb_vs_ccs <- FindMarkers(racm, ident.1 = 'Lower nodal bundle', ident.2=c('SA node', 'Compact AV node'), only.pos = TRUE, min.pct = 0.1)
+rat_lnb_vs_ccs <- rat_lnb_vs_ccs %>% filter(p_val_adj <= 0.05 & avg_log2FC >= log2(1.5) & pct.1 >= 0.1)
 
 # retain genes enriched in cell type vs non-CCS cardiomyocytes, and rest of CCS
 rat_san <- intersect(rownames(mark_san_rat), rownames(rat_san_vs_avn))
-rat_avn <- intersect(rownames(mark_avn_rat), rownames(rat_avn_vs_san))
+rat_avn <- intersect(rownames(mark_avn_rat), rownames(rat_avn_vs_ccs))
 rat_nodes <- intersect(rownames(mark_nodes_rat), rownames(rat_nodes_vs_lnb))
 rat_lnb <- intersect(rownames(mark_lnb_rat), rownames(rat_lnb_vs_ccs))
 
@@ -245,7 +390,7 @@ fig <- DotPlot(
   dot.min = -0.10,
   scale.max = 100
 ) &
-  scale_size_area(limits = c(0, 100), max_size = 6, breaks = c(0, 20, 40, 60, 80, 100)) &
+  scale_size_area(limits = c(0, 100), max_size = 9, breaks = c(0, 20, 40, 60, 80, 100)) &
   theme(
     axis.line = element_blank(),
     panel.border = element_rect(color = "black", fill = NA, size = 1),
@@ -278,7 +423,7 @@ fig <- DotPlot(
   dot.min = -0.10,
   scale.max = 100
 ) &
-  scale_size_area(limits = c(0, 100), max_size = 6, breaks = c(0, 20, 40, 60, 80, 100)) &
+  scale_size_area(limits = c(0, 100), max_size = 9, breaks = c(0, 20, 40, 60, 80, 100)) &
   theme(
     axis.line = element_blank(),
     panel.border = element_rect(color = "black", fill = NA, size = 1),
@@ -311,7 +456,7 @@ fig <- DotPlot(
   dot.min = -0.10,
   scale.max = 100
 ) &
-  scale_size_area(limits = c(0, 100), max_size = 6, breaks = c(0, 20, 40, 60, 80, 100)) &
+  scale_size_area(limits = c(0, 100), max_size = 9, breaks = c(0, 20, 40, 60, 80, 100)) &
   theme(
     axis.line = element_blank(),
     panel.border = element_rect(color = "black", fill = NA, size = 1),
@@ -344,7 +489,7 @@ fig <- DotPlot(
   dot.min = -0.10,
   scale.max = 100
 ) &
-  scale_size_area(limits = c(0, 100), max_size = 6, breaks = c(0, 20, 40, 60, 80, 100)) &
+  scale_size_area(limits = c(0, 100), max_size = 9, breaks = c(0, 20, 40, 60, 80, 100)) &
   theme(
     axis.line = element_blank(),
     panel.border = element_rect(color = "black", fill = NA, size = 1),
@@ -377,7 +522,7 @@ fig <- DotPlot(
   dot.min = -0.10,
   scale.max = 100
 ) &
-  scale_size_area(limits = c(0, 100), max_size = 6, breaks = c(0, 20, 40, 60, 80, 100)) &
+  scale_size_area(limits = c(0, 100), max_size = 9, breaks = c(0, 20, 40, 60, 80, 100)) &
   theme(
     axis.line = element_blank(),
     panel.border = element_rect(color = "black", fill = NA, size = 1),
@@ -410,7 +555,7 @@ fig <- DotPlot(
   dot.min = -0.10,
   scale.max = 100
 ) &
-  scale_size_area(limits = c(0, 100), max_size = 6, breaks = c(0, 20, 40, 60, 80, 100)) &
+  scale_size_area(limits = c(0, 100), max_size = 9, breaks = c(0, 20, 40, 60, 80, 100)) &
   theme(
     axis.line = element_blank(),
     panel.border = element_rect(color = "black", fill = NA, size = 1),
@@ -443,7 +588,7 @@ fig <- DotPlot(
   dot.min = -0.10,
   scale.max = 100
 ) &
-  scale_size_area(limits = c(0, 100), max_size = 6, breaks = c(0, 20, 40, 60, 80, 100)) &
+  scale_size_area(limits = c(0, 100), max_size = 9, breaks = c(0, 20, 40, 60, 80, 100)) &
 theme(
     axis.line = element_blank(),
     panel.border = element_rect(color = "black", fill = NA, size = 1),
@@ -480,7 +625,7 @@ fig <- DotPlot(
   dot.min = -0.10,
   scale.max = 100
 ) &
-  scale_size_area(limits = c(0, 100), max_size = 6, breaks = c(0, 20, 40, 60, 80, 100)) &
+  scale_size_area(limits = c(0, 100), max_size = 9, breaks = c(0, 20, 40, 60, 80, 100)) &
   theme(
     axis.line = element_blank(),
     panel.border = element_rect(color = "black", fill = NA, size = 1),
@@ -497,5 +642,188 @@ fig <- DotPlot(
   )
 
 ggsave('/Users/marwanbakr/docs/kimlab/manuscripts/2024 CCS comparative/figures/fig6/rat_lnb_dotplot.tiff', fig, dpi=600, width=16, height=4.5)
+
+```
+
+# plot dot plots v2
+```{r}
+
+rcm <- SetIdent(rcm, WhichCells(rcm, idents=c('AVN_aCM', 'SAN_aCM', '9: ACM')), 'aCM')
+Idents(rcm) <- factor(Idents(rcm), levels=rev(c('vCM', 'aCM', 'Lower nodal bundle', 'Compact AV node', 'SA node')))
+rcm$sub_ccs2 <- Idents(rcm)
+
+shared_rn_hs_all <- unique(c(
+  shared_san_rn_hs_a,
+  shared_avn_rn_hs_a,
+  shared_nodes_rn_hs_a
+))
+
+shared_mm_rn_all <- unique(c(
+  shared_san_mm_rn_a,
+  shared_avn_mm_rn_a,
+  shared_nodes_mm_rn_a
+))
+
+fig <- DotPlot(
+  rcm,
+  features = rev(ortholog_df$mm[match(unique(c(
+  intersect(shared_nodes_rn_hs_a, shared_nodes_mm_rn_a),
+  setdiff(shared_nodes_mm_rn_a, shared_rn_hs_all),
+  setdiff(shared_nodes_rn_hs_a, shared_mm_rn_all),
+  nodes_rat_specific_a
+)), ortholog_df$hs)]),
+  idents = c(
+    'SA node',
+    'Compact AV node',
+    'Lower nodal bundle',
+    'aCM',
+    'vCM'
+  ),
+  cols = c('whitesmoke', '#6C410A'),
+  col.min = -1,
+  col.max = 1.5,
+  dot.scale = 10,
+  dot.min = -0.10,
+  scale.max = 100
+) &
+  scale_size_area(limits = c(0, 100), max_size = 9, breaks = c(0, 20, 40, 60, 80, 100)) &
+  theme(
+    axis.line = element_blank(),
+    panel.border = element_rect(color = "black", fill = NA, size = 1),
+    axis.title = element_blank(),
+    axis.text.y = element_text(face='italic', size=14),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank()
+  ) & NoLegend() & coord_flip()
+
+ggsave('/Users/marwanbakr/docs/kimlab/manuscripts/2024 CCS comparative/figures/fig6/rat_nodes_dotplot_v3.tiff', fig, dpi=600, width=3.27, height=5)
+
+fig <- DotPlot(
+  rcm,
+  features = rev(ortholog_df$mm[match(unique(c(
+  intersect(shared_san_rn_hs_a, shared_san_mm_rn_a),
+  setdiff(shared_san_mm_rn_a, shared_rn_hs_all),
+  setdiff(shared_san_rn_hs_a, shared_mm_rn_all),
+  san_rat_specific_a
+)), ortholog_df$hs)]),
+  idents = c(
+    'SA node',
+    'Compact AV node',
+    'Lower nodal bundle',
+    'aCM',
+    'vCM'
+  ),
+  cols = c('whitesmoke', '#861D21'),
+  col.min = -1,
+  col.max = 1.5,
+  dot.scale = 10,
+  dot.min = -0.10,
+  scale.max = 100
+) &
+  scale_size_area(limits = c(0, 100), max_size = 9, breaks = c(0, 20, 40, 60, 80, 100)) &
+  theme(
+    axis.line = element_blank(),
+    panel.border = element_rect(color = "black", fill = NA, size = 1),
+    axis.title = element_blank(),
+    axis.text.y = element_text(face='italic', size=14),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank()
+  ) & NoLegend() & coord_flip()
+
+ggsave('/Users/marwanbakr/docs/kimlab/manuscripts/2024 CCS comparative/figures/fig6/rat_san_dotplot_v3.tiff', fig, dpi=600, width=3.27, height=5)
+
+fig <- DotPlot(
+  rcm,
+  features = rev(ortholog_df$mm[match(unique(c(
+  intersect(shared_avn_rn_hs_a, shared_avn_mm_rn_a),
+  setdiff(shared_avn_mm_rn_a, shared_rn_hs_all),
+  setdiff(shared_avn_rn_hs_a, shared_mm_rn_all),
+  avn_rat_specific_a
+)), ortholog_df$hs)]),
+  idents = c(
+    'SA node',
+    'Compact AV node',
+    'Lower nodal bundle',
+    'aCM',
+    'vCM'
+  ),
+  cols = c('whitesmoke', '#E7AD0D'),
+  col.min = -1,
+  col.max = 1.5,
+  dot.scale = 10,
+  dot.min = -0.10,
+  scale.max = 100
+) &
+  scale_size_area(limits = c(0, 100), max_size = 9, breaks = c(0, 20, 40, 60, 80, 100)) &
+  theme(
+    axis.line = element_blank(),
+    panel.border = element_rect(color = "black", fill = NA, size = 1),
+    axis.title = element_blank(),
+    axis.text.y = element_text(face='italic', size=14),
+    axis.text.x = element_text(size=14, angle=45, hjust=1, vjust=1)
+  ) & NoLegend() & coord_flip()
+
+ggsave('/Users/marwanbakr/docs/kimlab/manuscripts/2024 CCS comparative/figures/fig6/rat_avn_dotplot_v3.tiff', fig, dpi=600, width=3.27, height=5)
+
+
+fig <- DotPlot(
+  rcm,
+  features = rev(c(shared_lnb_mm_rn_a, ortholog_df[ortholog_df$hs %in% shared_lnb_rna_hse,]$mm, ortholog_df[ortholog_df$hs %in% lnb_rat_specific_a,]$mm)),
+  idents = c(
+    'SA node',
+    'Compact AV node',
+    'Lower nodal bundle',
+    'aCM',
+    'vCM'
+  ),
+  cols = c('whitesmoke', '#9DC183'),
+  col.min = -1,
+  col.max = 1.5,
+  dot.scale = 10,
+  dot.min = -0.10,
+  scale.max = 100
+) &
+  scale_size_area(limits = c(0, 100), max_size = 9, breaks = c(0, 20, 40, 60, 80, 100)) &
+  theme(
+    axis.line = element_blank(),
+    panel.border = element_rect(color = "black", fill = NA, size = 1),
+    axis.title = element_blank(),
+    axis.text.y = element_text(face='italic', size=14),
+    axis.text.x = element_text(size=14, angle=45, hjust=1, vjust=1)
+  ) & NoLegend() & coord_flip()
+
+ggsave('/Users/marwanbakr/docs/kimlab/manuscripts/2024 CCS comparative/figures/fig6/rat_lnb_dotplot_v3.tiff', fig, dpi=600, width=3.27, height=15.75)
+
+# legend plot
+
+fig <- DotPlot(
+  rcm,
+  features = rev(c(shared_lnb_mm_rn_a, ortholog_df[ortholog_df$hs %in% shared_lnb_rna_hse,]$mm, ortholog_df[ortholog_df$hs %in% lnb_rat_specific_a,]$mm)),
+  idents = c(
+    'SA node',
+    'Compact AV node',
+    'Lower nodal bundle',
+    'aCM',
+    'vCM'
+  ),
+  cols = c('whitesmoke', 'black'),
+  col.min = -1,
+  col.max = 1.5,
+  dot.scale = 10,
+  dot.min = -0.10,
+  scale.max = 100
+) &
+  scale_size_area(limits = c(0, 100), max_size = 9, breaks = c(0, 20, 40, 60, 80, 100)) &
+  theme(
+    axis.line = element_blank(),
+    panel.border = element_rect(color = "black", fill = NA, size = 1),
+    axis.title = element_blank(),
+    axis.text.y = element_text(face='italic', size=14),
+    axis.text.x = element_text(size=14, angle=45, hjust=1, vjust=1)
+  ) & coord_flip()
+
+ggsave('/Users/marwanbakr/docs/kimlab/manuscripts/2024 CCS comparative/figures/fig6/rat_lnb_dotplot_v3_legend.tiff', fig, dpi=600, width=3.27, height=15.75)
+
+
 
 ```
