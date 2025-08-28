@@ -36,7 +36,8 @@ Below is a summary of the datasets used:
 - `SuppFig_Fetal_SAN_Integration.Rmd`: Integration and comparison of human fetal sinoatrial node datasets (9-15pcw and 19pcw).
 - `SuppFig_Human_Fetal_Annotation.Rmd`: Annotation of fetal human CCS.
 - `SuppFig_Mouse_Human_Correlation.Rmd`: Correlation between human and mouse CCS populations.
-- `SuppFig_Rat_Annotation.Rmd`: Annotation of adult rat CCS. 
+- `SuppFig_Rat_Annotation.Rmd`: Annotation of adult rat CCS.
+- `SuppFig_Zebrafish_Embryo_Adult_Comparison`: Comparison between embyronic and adult zebrafish SA node.
 
 ## Dependencies
 
