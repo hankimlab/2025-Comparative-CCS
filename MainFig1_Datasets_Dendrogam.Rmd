@@ -11,22 +11,22 @@ library(Seurat)
 library(tidyverse)
 
 # ccs only objects
-fccs <- readRDS('farah_ccs_20240910.rds') # Farah et al, Nature 2024 (human embryonic)
+fccs <- readRDS('farah_ccs_20240910.rds') # Farah et al, Nature 2024 (human fetal - 9-15pcw)
+lccs <- readRDS('protze_fetal_san_pacemakeronly.rds') # Lim et al, Nat Commun 2024 (human fetal - 19pcw)
 gccs <- readRDS('goodyer_ccs_20240910.rds') # Goodyer et al, Circ Res 2019 (mouse embryonic)
 kccs <- readRDS('kanemaru_ccs_20240910.rds') # Kanemaru et al, Nature 2023 (human adult)
 occs <- readRDS('20231212_ccs_object.rds') # Oh et al, Nat Commun 2024 (mouse postnatal)
-lccs <- readRDS('protze_fetal_san_pacemakeronly.rds')
-zccs_e <- readRDS('zebrafish_ccs_20250706.rds')
-zccs_a <- readRDS('zebrafish_ccs_adult_li.rds')
-zf_mdk_trbc <- readRDS('zf_mdk_trbc_20250706.rds')
-rccs <- readRDS('rat_ccs_20250401.rds')
+zccs_e <- readRDS('zebrafish_ccs_20250706.rds') # Abu Nahia et al, iScience 2024 (zebrafish embryonic)
+zccs_a <- readRDS('zebrafish_ccs_adult_li.rds') # Li et al, Nat Commun 2024 (zebrafish adult - SA node)
+zf_mdk_trbc <- readRDS('zf_mdk_trbc_20250706.rds') # Carey et al, Biol Open 2024 (zebrafish adult - trabeculae)
+rccs <- readRDS('rat_ccs_20250401.rds') # Arduini et al, Cell Rep 2025 (rat adult)
 
 # all cm objects
 
 fcm <- readRDS('20240911_farah_cardiomyocytes_annotated.rds')
+lcm <- readRDS('protze_fetal_san.rds')
 gcm <- readRDS('goodyer_cm_20240910.rds')
 kcm <- readRDS('kanemaru_cm_qc.rds')
-lcm <- readRDS('protze_fetal_san.rds')
 zcm_nahia <- readRDS('zebrafish_cm_20250401.rds')
 zcm_li <- readRDS('zebrafish_cm_adult_li.rds')
 zf_mdk_cm <- readRDS('myocardium.rds')
@@ -51,57 +51,39 @@ lccs$sub_ccs <- Idents(lccs)
 
 fig <- DimPlot(occs, cells=WhichCells(occs, idents='Contractile cardiomyocytes', invert=T), cols=c('#861D21', '#F4C542', '#9DC183', '#7CB8B2', '#7BAFD4', '#B39CDA', '#8F7BA3', '#ECC2D2'), group.by='sub_all_onehis', pt.size=0.75) & NoAxes() & NoLegend() & theme(plot.title=element_blank())
 
-ggsave('/Users/marwanbakr/docs/kimlab/manuscripts/2024 CCS comparative/figures/fig1/mp_umap_no_legend.tiff', fig, width=7, height=5)
+ggsave('mp_umap_no_legend.tiff', fig, width=7, height=5)
 
 fig <- DimPlot(gccs, cols=c('#641619', '#CA4E4C', '#E68D75', '#F4C542', '#F0D58C', '#91B88C', '#ACC996', '#A3C1DA', '#7CB8B2', '#C7B8E2', '#8F7BA3'), group.by='sub_ccs', pt.size=1.25) & NoAxes() & NoLegend() & theme(plot.title = element_blank())
 
-ggsave('/Users/marwanbakr/docs/kimlab/manuscripts/2024 CCS comparative/figures/fig1/me_umap_no_legend.tiff', fig, width=7, height=5)
+ggsave('me_umap_no_legend.tiff', fig, width=7, height=5)
 
 fig <- DimPlot(kccs, cols=c('#861D21', '#F4C542', '#7CB8B2', '#8F7BA3'), group.by='sub_ccs', pt.size=1.75) & NoAxes() & NoLegend() & theme(plot.title=element_blank())
 
-ggsave('/Users/marwanbakr/docs/kimlab/manuscripts/2024 CCS comparative/figures/fig1/ha_umap_no_legend.tiff', fig, width=7, height=5)
+ggsave('ha_umap_no_legend.tiff', fig, width=7, height=5)
 
 fig <- DimPlot(fccs, cols=c('#641619', '#CA4E4C', '#E68D75', '#F4C542', '#9DC183', '#7CB8B2', '#8F7BA3'), group.by='sub_ccs') & NoAxes() & NoLegend() & theme(plot.title=element_blank())
 
-ggsave('/Users/marwanbakr/docs/kimlab/manuscripts/2024 CCS comparative/figures/fig1/he_umap_no_legend.tiff', fig, width=7, height=5)
+ggsave('he_umap_no_legend.tiff', fig, width=7, height=5)
 
 fig <- DimPlot(lccs, cols=c('#861D21', '#E44C31', '#E68D75'), group.by='sub_ccs', pt.size=1.25) & NoAxes() & NoLegend() & theme(plot.title=element_blank())
 
-ggsave('/Users/marwanbakr/docs/kimlab/manuscripts/2024 CCS comparative/figures/fig1/h19_umap_no_legend.tiff', fig, width=7, height=5)
+ggsave('h19_umap_no_legend.tiff', fig, width=7, height=5)
 
 fig <- DimPlot(rccs, cols=c('#861D21', '#F4C542', '#9DC183'), group.by='sub_ccs', pt.size=1.5) & NoAxes() & NoLegend() & theme(plot.title=element_blank())
 
-ggsave('/Users/marwanbakr/docs/kimlab/manuscripts/2024 CCS comparative/figures/fig1/rat_umap_no_legend.tiff', fig, width=7, height=5)
+ggsave('rat_umap_no_legend.tiff', fig, width=7, height=5)
 
 fig <- DimPlot(zccs_e, cols=c('#861D21', '#F4C542'), group.by='sub_ccs2', pt.size=2.6) & NoAxes() & NoLegend() & theme(plot.title=element_blank())
 
-ggsave('/Users/marwanbakr/docs/kimlab/manuscripts/2024 CCS comparative/figures/fig1/zebrafish_umap_no_legend.tiff', fig, width=7, height=5)
+ggsave('zebrafish_umap_no_legend.tiff', fig, width=7, height=5)
 
 fig <- DimPlot(zccs_a, cols=c('#861D21'), group.by='sub_ccs', pt.size=2.6) & NoAxes() & NoLegend() & theme(plot.title=element_blank())
 
-ggsave('/Users/marwanbakr/docs/kimlab/manuscripts/2024 CCS comparative/figures/fig1/zebrafish_adult_nodes_umap_no_legend.tiff', fig, width=7, height=5)
+ggsave('zebrafish_adult_nodes_umap_no_legend.tiff', fig, width=7, height=5)
 
 fig <- DimPlot(zf_mdk_trbc, cols=c('#62b6cb', '#1b4965'), pt.size=1.5) & NoAxes() & NoLegend() & theme(plot.title=element_blank())
 
-ggsave('/Users/marwanbakr/docs/kimlab/manuscripts/2024 CCS comparative/figures/fig1/zebrafish_medaka_trabeculae_umap_no_legend.tiff', fig, width=7, height=5)
-
-# with legend
-
-fig <- DimPlot(occs, cells=WhichCells(occs, idents='Contractile cardiomyocytes', invert=T), cols=c('#861D21', '#F4C542', '#9DC183', '#7CB8B2', '#7BAFD4', '#B39CDA', '#8F7BA3', '#ECC2D2'), group.by='sub_all_onehis') & NoAxes() & theme(plot.title=element_blank())
-
-ggsave('/Users/marwanbakr/docs/kimlab/manuscripts/2024 CCS comparative/figures/fig1/mp_umap.tiff', fig, width=7, height=5)
-
-fig <- DimPlot(gccs, cols=c('#641619', '#CA4E4C', '#E68D75', '#F4C542', '#F0D58C', '#91B88C', '#ACC996', '#A3C1DA', '#7CB8B2', '#C7B8E2', '#8F7BA3'), group.by='sub_ccs') & NoAxes() & theme(plot.title = element_blank())
-
-ggsave('/Users/marwanbakr/docs/kimlab/manuscripts/2024 CCS comparative/figures/fig1/me_umap.tiff', fig, width=7, height=5)
-
-fig <- DimPlot(kccs, cols=c('#861D21', '#F4C542', '#7CB8B2', '#8F7BA3'), group.by='sub_ccs') & NoAxes() & theme(plot.title=element_blank())
-
-ggsave('/Users/marwanbakr/docs/kimlab/manuscripts/2024 CCS comparative/figures/fig1/ha_umap.tiff', fig, width=7, height=5)
-
-fig <- DimPlot(fccs, cols=c('#641619', '#CA4E4C', '#E68D75', '#F4C542', '#9DC183', '#7CB8B2', '#8F7BA3'), group.by='sub_ccs') & NoAxes() & theme(plot.title=element_blank())
-
-ggsave('/Users/marwanbakr/docs/kimlab/manuscripts/2024 CCS comparative/figures/fig1/he_umap.tiff', fig, width=7, height=5)
+ggsave('zebrafish_medaka_trabeculae_umap_no_legend.tiff', fig, width=7, height=5)
 
 ```
 
