@@ -1,0 +1,854 @@
+---
+title: "MainFig6_SCENIC"
+output: html_document
+date: "2025-08-28"
+---
+
+
+## ADULT
+
+# TF activity matrices in mouse and human (activating)
+```{r}
+
+# activating human
+
+auc_mtx_activating_hs <- read.csv('san_avn_ax_cm_raw_mingenes5_activatingonly_auc_mtx.csv', row.names=1)
+
+# clean colnames and replace periods with dashes to match gene expression matrix
+colnames(auc_mtx_activating_hs) <- sub("\\.{3}$", "", colnames(auc_mtx_activating_hs))
+colnames(auc_mtx_activating_hs) <- sub("\\.", "-", colnames(auc_mtx_activating_hs))
+
+#filter putative regulon TFs for each region by percent expression (10%)
+
+library(scCustomize)
+
+# Filter based on cell state and region, and exclude 'unclassified' cell states
+kcm_sub <- subset(
+  kcm,
+  subset = (cell_state %in% c("vCM2", "aCM1", "SAN_P_cell", "AVN_P_cell", "AVN_bundle_cell", "Purkinje_cell")) &
+            (region %in% c("SAN", "AVN", "AX"))
+)
+
+write.csv(kcm_sub@meta.data, 'kcm_sub_meta.csv')
+
+percent_hs <- Percent_Expressing(kcm_sub, colnames(auc_mtx_activating_hs), group_by='sub_ccs')
+
+san_tfs_hs <- rownames(percent_hs)[percent_hs[,"SA.node"] >= 10]
+avn_tfs_hs <- rownames(percent_hs)[percent_hs[,"Compact.AV.node"] >= 10]
+avb_tfs_hs <- rownames(percent_hs)[percent_hs[,"His.bundle"] >= 10]
+purkinje_tfs_hs <- rownames(percent_hs)[percent_hs[,"Purkinje.fibers"] >= 10]
+# vcm_tfs_hs <- rownames(percent_hs)[percent_hs[,"vCM"] >= 25]
+# acm_tfs_hs <- rownames(percent_hs)[percent_hs[,"aCM"] >= 25]
+
+# activating mouse
+
+auc_mtx_activating_mm <- read.csv('/Volumes/marwan/kimlab/mouse_CCS/ccs_10kb_500bp_min10pct_repress_mingenes5_activatingonly_aucmtx.csv', row.names = 1)
+
+# clean colnames and replace periods with dashes to match gene expression matrix
+colnames(auc_mtx_activating_mm) <- sub("\\.{3}$", "", colnames(auc_mtx_activating_mm))
+colnames(auc_mtx_activating_mm) <- sub("\\.", "-", colnames(auc_mtx_activating_mm))
+
+#filter putative regulon TFs for each region by percent expression (10%)
+
+percent_mm <- Percent_Expressing(occs, colnames(auc_mtx_activating_mm), group_by='sub_ccs')
+
+san_tfs_mm <- rownames(percent_mm)[percent_mm[,"SA.node"] >= 10]
+avn_tfs_mm <- rownames(percent_mm)[percent_mm[,"Compact.AV.node"] >= 10]
+avb_tfs_mm <- rownames(percent_mm)[percent_mm[,"His.bundle"] >= 10]
+purkinje_tfs_mm <- rownames(percent_mm)[percent_mm[,"Purkinje.fibers"] >= 10]
+#vcm_tfs_mm <- rownames(percent_mm)[percent_mm[,"Contractile.cardiomyocytes"] >= 25]
+
+# for each mouse and human, filter auc matrices for only common regulons
+
+# human
+
+regulons_activating_hs <- unique(c(san_tfs_hs, avn_tfs_hs, avb_tfs_hs, purkinje_tfs_hs))
+regulons_activating_mm <- unique(c(san_tfs_mm, avn_tfs_mm, avb_tfs_mm, purkinje_tfs_mm))
+
+ortholog_regulons_activating_mm_to_hs <- ortholog_df[ortholog_df$mm %in% regulons_activating_mm,]
+ortholog_regulons_activating_hs_to_mm <- ortholog_df[ortholog_df$hs %in% regulons_activating_hs,]
+
+#filter only common regulons
+regulons_activating_hs <- intersect(regulons_activating_hs, ortholog_regulons_activating_mm_to_hs$hs)
+regulons_activating_mm <- intersect(regulons_activating_mm, ortholog_regulons_activating_hs_to_mm$mm)
+
+# subset AUC matrix to only include filtered regulons
+auc_subset_activating_hs <- auc_mtx_activating_hs[,colnames(auc_mtx_activating_hs) %in% regulons_activating_hs]
+
+# generate matrix of mean regulon AUC in each region (n_regions x n_regulons)
+auc_subset_activating_hs <- auc_subset_activating_hs %>% group_by(kcm_sub@meta.data$sub_ccs)
+mean_auc_subset_activating_hs <- auc_subset_activating_hs %>%
+  summarise(across(everything(), ~mean(.[`kcm_sub@meta.data$sub_ccs` %in% c("SA node", "Compact AV node", "His bundle", "Purkinje fibers", "aCM", "vCM")])))
+rownames(mean_auc_subset_activating_hs) <- mean_auc_subset_activating_hs$`kcm_sub@meta.data$sub_ccs`
+mean_auc_subset_activating_hs <- mean_auc_subset_activating_hs[c("SA node", "Compact AV node", "His bundle", "Purkinje fibers", "aCM", "vCM"),]
+mean_auc_subset_activating_hs$`kcm_sub@meta.data$sub_ccs` <- NULL
+rownames(mean_auc_subset_activating_hs) <- c("SA node", "Compact AV node", "His bundle", "Purkinje fibers", "aCM", "vCM")
+
+# subset AUC matrix to only include filtered regulons
+auc_subset_activating_mm <- auc_mtx_activating_mm[,colnames(auc_mtx_activating_mm) %in% regulons_activating_mm]
+
+# generate matrix of mean regulon AUC in each region (n_regions x n_regulons)
+auc_subset_activating_mm <- auc_subset_activating_mm %>% group_by(occs@meta.data$sub_all_onehis)
+mean_auc_subset_activating_mm <- auc_subset_activating_mm %>%
+  summarise(across(everything(), ~mean(.[`occs@meta.data$sub_all_onehis` %in% c("SA node", "Compact AV node", "Lower nodal bundle", "His bundle", "Proximal bundle branch", "Distal bundle branch", "Purkinje fibers", "Contractile cardiomyocytes", "Proliferative CCS")])))
+rownames(mean_auc_subset_activating_mm) <- c("SA node", "Compact AV node", "Lower nodal bundle", "His bundle", "Proximal bundle branch", "Distal bundle branch", "Purkinje fibers", "Contractile cardiomyocytes", "Proliferative CCS")
+mean_auc_subset_activating_mm <- mean_auc_subset_activating_mm[c("SA node", "Compact AV node", "His bundle", "Purkinje fibers", "Contractile cardiomyocytes"),]
+mean_auc_subset_activating_mm$`occs@meta.data$sub_all_onehis` <- NULL
+rownames(mean_auc_subset_activating_mm) <- c("SA node", "Compact AV node", "His bundle", "Purkinje fibers", "Contractile cardiomyocytes")
+
+```
+
+# correlation (TF activities - AUC)
+```{r}
+
+# mean_auc_subset_activating_hs_noaCM <- subset(mean_auc_subset_activating_hs, rownames(mean_auc_subset_activating_hs) != 'aCM')
+# rownames(mean_auc_subset_activating_hs_noaCM) <- c("SA node", "Compact AV node", "His bundle", "Purkinje fibers", "vCM")
+scaled_hs <- as.data.frame(scale(subset(mean_auc_subset_activating_hs, rownames(mean_auc_subset_activating_hs) != 'aCM' & rownames(mean_auc_subset_activating_hs) != 'vCM')))
+scaled_mm <- as.data.frame(scale(subset(mean_auc_subset_activating_mm, rownames(mean_auc_subset_activating_mm) != 'Contractile cardiomyocytes')))
+
+# convert mouse tfs to human gene names (already in same order)
+colnames(scaled_mm) <- colnames(scaled_hs)
+
+# consistent region naming
+rownames(scaled_hs) <- c('SAN', 'cAVN', 'HIS', 'PF')
+rownames(scaled_mm) <- c('SAN', 'cAVN', 'HIS', 'PF')
+scaled_hs$region <- rownames(scaled_hs)
+scaled_mm$region <- rownames(scaled_mm)
+
+scaled_combined <- left_join(scaled_mm, scaled_hs, by = "region", suffix = c("_mm", "_hs"))
+
+# convert all relevant columns to numeric
+for (col in colnames(scaled_combined)) {
+  scaled_combined[[col]] <- as.numeric(as.character(scaled_combined[[col]]))
+}
+
+# initialize correlation dataframe
+corrs <- data.frame(TF = character(), Pearson = numeric(), stringsAsFactors = FALSE)
+
+# calculate Pearson correlation for each transcription factor
+for (tf in colnames(scaled_mm)) {
+  mouse_col <- scaled_combined[[paste0(tf, "_mm")]]
+  human_col <- scaled_combined[[paste0(tf, "_hs")]]
+  
+  # check columns are numeric vectors
+  if (is.numeric(mouse_col) && is.numeric(human_col)) {
+    pearson <- cor(mouse_col, human_col)
+    corrs <- rbind(corrs, data.frame(tf = tf, corr = pearson, stringsAsFactors = FALSE))
+  } else {
+    warning(paste("Skipping", tf, "due to non-numeric columns."))
+  }
+}
+
+rownames(corrs) <- corrs$tf
+corrs$tf <- NULL
+
+```
+
+# plot (positive and negative corr sepearetly)
+```{r}
+
+corrs_pos <- subset(corrs, corrs$corr > 0)
+corrs_neg <- subset(corrs, corrs$corr < 0)
+
+mean_auc_subset_activating_hs_pos <- mean_auc_subset_activating_hs[,colnames(mean_auc_subset_activating_hs) %in% rownames(corrs_pos)]
+rownames(mean_auc_subset_activating_hs_pos) <- c("SA node", "Compact AV node", "His bundle", "Purkinje fibers", "aCM", "vCM")
+
+mm_tfs_pos <- str_to_title(colnames(mean_auc_subset_activating_hs_pos))
+mean_auc_subset_activating_mm_pos <- mean_auc_subset_activating_mm[colnames(mean_auc_subset_activating_mm) %in% mm_tfs_pos]
+rownames(mean_auc_subset_activating_mm_pos) <- c("SA node", "Compact AV node", "His bundle", "Purkinje fibers", "vCM")
+
+mean_auc_subset_activating_hs_neg <- mean_auc_subset_activating_hs[,colnames(mean_auc_subset_activating_hs) %in% rownames(corrs_neg)]
+rownames(mean_auc_subset_activating_hs_neg) <- c("SA node", "Compact AV node", "His bundle", "Purkinje fibers", "aCM", "vCM")
+
+mm_tfs_neg <- str_to_title(colnames(mean_auc_subset_activating_hs_neg))
+mean_auc_subset_activating_mm_neg <- mean_auc_subset_activating_mm[colnames(mean_auc_subset_activating_mm) %in% mm_tfs_neg]
+rownames(mean_auc_subset_activating_mm_neg) <- c("SA node", "Compact AV node", "His bundle", "Purkinje fibers", "vCM")
+
+# sort by peak:
+
+san_tfs_max_hs <- c()
+avn_tfs_max_hs <- c()
+his_tfs_max_hs <- c()
+pf_tfs_max_hs <- c()
+# acm_tfs_max_hs <- c()
+# vcm_tfs_max_hs <- c()
+
+# Loop through each column (gene)
+for (tf in colnames(mean_auc_subset_activating_hs_pos)) {
+
+  # find ccs region with highest AUC value for this tf
+  region <- rownames(mean_auc_subset_activating_hs_pos)[which.max(mean_auc_subset_activating_hs_pos[rownames(mean_auc_subset_activating_hs_pos) %in% c('SA node', 'Compact AV node', 'His bundle', 'Purkinje fibers'),][[tf]])]
+
+  # Add the gene to the appropriate list based on the max value cell type
+  if (region == "SA node") {
+    san_tfs_max_hs <- c(san_tfs_max_hs, tf)
+  } else if (region == "Compact AV node") {
+    avn_tfs_max_hs <- c(avn_tfs_max_hs, tf)
+  } else if (region == "His bundle") {
+    his_tfs_max_hs <- c(his_tfs_max_hs, tf)
+  } else if (region == "Purkinje fibers") {
+    pf_tfs_max_hs <- c(pf_tfs_max_hs, tf)
+  }
+}
+
+mean_auc_subset_activating_hs_pos <- mean_auc_subset_activating_hs_pos[, c(san_tfs_max_hs, avn_tfs_max_hs, his_tfs_max_hs, pf_tfs_max_hs)]
+rownames(mean_auc_subset_activating_hs_pos) <- c("SA node", "Compact AV node", "His bundle", "Purkinje fibers", "aCM", "vCM")
+
+mm_order <- str_to_title(colnames(mean_auc_subset_activating_hs_pos))
+mean_auc_subset_activating_mm_pos <- mean_auc_subset_activating_mm_pos[, mm_order]
+
+mean_auc_subset_activating_hs_pos <- mean_auc_subset_activating_hs_pos[, c(san_tfs_max_hs, avn_tfs_max_hs, his_tfs_max_hs, pf_tfs_max_hs)]
+
+tiff('20250728_mean_auc_heatmap_poscorr_hs_adult.tiff', width = 10, height = 2.75, res = 800, units='in')
+
+pheatmap(mean_auc_subset_activating_hs_pos, 
+         scale='column', 
+         cluster_rows = F,
+         cluster_cols=F,
+         show_rownames = F,
+         border_color=NA,
+         angle_col=90,
+         legend=F,
+         color = colorRampPalette(c('#FEF4EC', '#FAD3B3', '#E45C3A'))(1000))
+
+dev.off()
+
+tiff('20250728_mean_auc_heatmap_poscorr_mm_adult.tiff', width = 10, height = 2.75, res = 800, units='in')
+
+pheatmap(mean_auc_subset_activating_mm_pos, 
+         scale='column', 
+         cluster_rows = F,
+         cluster_cols = F,
+         show_rownames = F,
+         border_color=NA,
+         angle_col=90,
+         legend=F,
+         color = colorRampPalette(c('#EFF8FA', '#a9d6e5', '#1b4965'))(1000))
+
+dev.off()
+
+tiff('20250728_mean_auc_heatmap_poscorr_hs_adult_largerfont.tiff', width = 10, height = 3.1, res = 800, units='in')
+
+pheatmap(mean_auc_subset_activating_hs_pos, 
+         scale='column', 
+         cluster_rows = F,
+         cluster_cols=F,
+         show_rownames = F,
+         border_color=NA,
+         angle_col=90,
+         fontsize_col=16,
+         legend=F,
+         color = colorRampPalette(c('#FEF4EC', '#FAD3B3', '#E45C3A'))(1000))
+
+dev.off()
+
+tiff('20250728_mean_auc_heatmap_poscorr_mm_adult_largerfont.tiff', width = 10, height = 3.1, res = 800, units='in')
+
+pheatmap(mean_auc_subset_activating_mm_pos, 
+         scale='column', 
+         cluster_rows = F,
+         cluster_cols = F,
+         show_rownames = F,
+         border_color=NA,
+         angle_col=90,
+         fontsize_col=16,
+         legend=F,
+         color = colorRampPalette(c('#EFF8FA', '#a9d6e5', '#1b4965'))(1000))
+
+dev.off()
+
+
+# negative corr
+
+mean_auc_subset_activating_hs_neg <- mean_auc_subset_activating_hs[,colnames(mean_auc_subset_activating_hs) %in% rownames(corrs_neg)]
+rownames(mean_auc_subset_activating_hs_neg) <- c("SA node", "Compact AV node", "His bundle", "Purkinje fibers", "aCM", "vCM")
+
+mm_tfs_neg <- str_to_title(colnames(mean_auc_subset_activating_hs_neg))
+mean_auc_subset_activating_mm_neg <- mean_auc_subset_activating_mm[colnames(mean_auc_subset_activating_mm) %in% mm_tfs_neg]
+rownames(mean_auc_subset_activating_mm_neg) <- c("SA node", "Compact AV node", "His bundle", "Purkinje fibers", "vCM")
+
+mean_auc_subset_activating_hs_neg <- mean_auc_subset_activating_hs[,colnames(mean_auc_subset_activating_hs) %in% rownames(corrs_neg)]
+rownames(mean_auc_subset_activating_hs_neg) <- c("SA node", "Compact AV node", "His bundle", "Purkinje fibers", "aCM", "vCM")
+
+mm_tfs_neg <- str_to_title(colnames(mean_auc_subset_activating_hs_neg))
+mean_auc_subset_activating_mm_neg <- mean_auc_subset_activating_mm[colnames(mean_auc_subset_activating_mm) %in% mm_tfs_neg]
+rownames(mean_auc_subset_activating_mm_neg) <- c("SA node", "Compact AV node", "His bundle", "Purkinje fibers", "vCM")
+
+# sort by peak:
+
+san_tfs_max_hs <- c()
+avn_tfs_max_hs <- c()
+his_tfs_max_hs <- c()
+pf_tfs_max_hs <- c()
+# acm_tfs_max_hs <- c()
+# vcm_tfs_max_hs <- c()
+
+# Loop through each column (gene)
+for (tf in colnames(mean_auc_subset_activating_hs_neg)) {
+
+  # find ccs region with highest AUC value for this tf
+  region <- rownames(mean_auc_subset_activating_hs_neg)[which.max(mean_auc_subset_activating_hs_neg[rownames(mean_auc_subset_activating_hs_neg) %in% c('SA node', 'Compact AV node', 'His bundle', 'Purkinje fibers'),][[tf]])]
+
+  # Add the gene to the appropriate list based on the max value cell type
+  if (region == "SA node") {
+    san_tfs_max_hs <- c(san_tfs_max_hs, tf)
+  } else if (region == "Compact AV node") {
+    avn_tfs_max_hs <- c(avn_tfs_max_hs, tf)
+  } else if (region == "His bundle") {
+    his_tfs_max_hs <- c(his_tfs_max_hs, tf)
+  } else if (region == "Purkinje fibers") {
+    pf_tfs_max_hs <- c(pf_tfs_max_hs, tf)
+  }
+}
+
+# mean_auc_subset_activating_hs_neg <- mean_auc_subset_activating_hs_neg[, c(san_tfs_max_hs, avn_tfs_max_hs, his_tfs_max_hs, pf_tfs_max_hs)]
+# rownames(mean_auc_subset_activating_hs_neg) <- c("SA node", "Compact AV node", "His bundle", "Purkinje fibers", "aCM", "vCM")
+# 
+# mm_order <- str_to_title(colnames(mean_auc_subset_activating_hs_neg))
+# mean_auc_subset_activating_mm_neg <- mean_auc_subset_activating_mm_neg[, mm_order]
+# 
+# mean_auc_subset_activating_hs_neg <- mean_auc_subset_activating_hs_neg[, c(san_tfs_max_hs, avn_tfs_max_hs, his_tfs_max_hs, pf_tfs_max_hs)]
+
+# pheatmap(mean_auc_subset_activating_hs_neg, 
+#          scale='column', 
+#          cluster_rows = F,
+#          cluster_cols=F,
+#          show_rownames = F,
+#          border_color=NA,
+#          color = colorRampPalette(c('#f5fbf3', '#80c97f', '#02441b'))(1000))
+# 
+# pheatmap(mean_auc_subset_activating_mm_neg, 
+#          scale='column', 
+#          cluster_rows = F,
+#          cluster_cols = F,
+#          show_rownames = F,
+#          border_color=NA,
+#          color = colorRampPalette(c('#f5fbf3', '#80c97f', '#02441b'))(1000))
+
+```
+
+
+### EMBRYO
+
+# TF activity matrices in mouse and human (activating)
+```{r}
+
+# activating human
+
+auc_mtx_activating_hs <- read.csv('human_ivs_ra_ccs_raw_reg_mingenes5_20241003_activatingonly_auc_mtx.csv', row.names=1)
+
+# clean colnames and replace periods with dashes to match gene expression matrix
+colnames(auc_mtx_activating_hs) <- sub("\\.{3}$", "", colnames(auc_mtx_activating_hs))
+colnames(auc_mtx_activating_hs) <- sub("\\.", "-", colnames(auc_mtx_activating_hs))
+
+#filter putative regulon TFs for each region by percent expression (10%)
+
+library(scCustomize)
+
+
+percent_hs <- Percent_Expressing(fcm_scenic, colnames(auc_mtx_activating_hs), group_by='sub_ccs_onesan')
+
+san_tfs_hs <- rownames(percent_hs)[percent_hs[,"SAN"] >= 10]
+avn_tfs_hs <- rownames(percent_hs)[percent_hs[,"Compact.AVN"] >= 10]
+# lnb_tfs_hs <- rownames(percent_hs)[percent_hs[,"Lower.nodal.bundle"] >= 10]
+avb_tfs_hs <- rownames(percent_hs)[percent_hs[,"His.bundle"] >= 10]
+purkinje_tfs_hs <- rownames(percent_hs)[percent_hs[,"Purkinje.fibers"] >= 10]
+# vcm_tfs_hs <- rownames(percent_hs)[percent_hs[,"vCM"] >= 25]
+# acm_tfs_hs <- rownames(percent_hs)[percent_hs[,"aCM"] >= 25]
+
+# activating mouse
+
+auc_mtx_activating_mm <- read.csv('mouse_cm_ccs_raw_reg_v2_activatingonly_auc_mtx.csv', row.names = 1)
+
+# clean colnames and replace periods with dashes to match gene expression matrix
+colnames(auc_mtx_activating_mm) <- sub("\\.{3}$", "", colnames(auc_mtx_activating_mm))
+colnames(auc_mtx_activating_mm) <- sub("\\.", "-", colnames(auc_mtx_activating_mm))
+
+#filter putative regulon TFs for each region by percent expression (10%)
+
+percent_mm <- Percent_Expressing(gccs, colnames(auc_mtx_activating_mm), group_by='sub_ccs_onesan')
+
+san_tfs_mm <- rownames(percent_mm)[percent_mm[,"SAN"] >= 10]
+avn_tfs_mm <- rownames(percent_mm)[percent_mm[,"Compact.AVN"] >= 10]
+avb_tfs_mm <- rownames(percent_mm)[percent_mm[,"His.bundle"] >= 10]
+purkinje_tfs_mm <- rownames(percent_mm)[percent_mm[,"PF"] >= 10]
+# vcm_tfs_mm <- rownames(percent_mm)[percent_mm[,"Contractile.cardiomyocytes"] >= 10]
+
+# for each mouse and human, filter auc matrices for only common regulons
+# 
+# # orthology dataframe
+# mouse_human_genes = read.csv(
+#   "http://www.informatics.jax.org/downloads/reports/HOM_MouseHumanSequence.rpt",
+#   sep = "\t"
+# )
+# 
+# # human
+
+regulons_activating_hs <- unique(c(san_tfs_hs, avn_tfs_hs, avb_tfs_hs, purkinje_tfs_hs))
+regulons_activating_mm <- unique(c(san_tfs_mm, avn_tfs_mm, avb_tfs_mm, purkinje_tfs_mm))
+
+ortholog_regulons_activating_mm_to_hs <- ortholog_df[ortholog_df$mm %in% regulons_activating_mm,]
+ortholog_regulons_activating_hs_to_mm <- ortholog_df[ortholog_df$hs %in% regulons_activating_hs,]
+
+#filter only common regulons
+regulons_activating_hs <- intersect(regulons_activating_hs, ortholog_regulons_activating_mm_to_hs$hs)
+regulons_activating_mm <- intersect(regulons_activating_mm, ortholog_regulons_activating_hs_to_mm$mm)
+
+# subset AUC matrix to only include filtered regulons
+auc_subset_activating_hs <- auc_mtx_activating_hs[,colnames(auc_mtx_activating_hs) %in% regulons_activating_hs]
+
+# generate matrix of mean regulon AUC in each region (n_regions x n_regulons)
+auc_subset_activating_hs <- auc_subset_activating_hs %>% group_by(fcm_scenic@meta.data$sub_ccs)
+mean_auc_subset_activating_hs <- auc_subset_activating_hs %>%
+  summarise(across(everything(), ~mean(.[`fcm_scenic@meta.data$sub_ccs` %in% c("SAN head", "SAN tail", "Tz-SAN", "Compact AVN", "Lower nodal bundle", "His bundle", "Purkinje fibers", "aCM", "vCM")])))
+rownames(mean_auc_subset_activating_hs) <- mean_auc_subset_activating_hs$`fcm_scenic@meta.data$sub_ccs`
+mean_auc_subset_activating_hs <- mean_auc_subset_activating_hs[c("SAN head", "SAN tail", "Tz-SAN", "Compact AVN", "His bundle", "Purkinje fibers", "aCM", "vCM"),]
+mean_auc_subset_activating_hs$`fcm_scenic@meta.data$sub_ccs` <- NULL
+rownames(mean_auc_subset_activating_hs) <- c("SAN head", "SAN tail", "Tz-SAN", "Compact AVN", "His bundle", "Purkinje fibers", "aCM", "vCM")
+
+# subset AUC matrix to only include filtered regulons
+auc_subset_activating_mm <- auc_mtx_activating_mm[,colnames(auc_mtx_activating_mm) %in% regulons_activating_mm]
+
+# generate matrix of mean regulon AUC in each region (n_regions x n_regulons)
+auc_subset_activating_mm <- auc_subset_activating_mm %>% group_by(gcm@meta.data$sub_ccs)
+mean_auc_subset_activating_mm <- auc_subset_activating_mm %>%
+  summarise(across(everything(), ~mean(.[`gcm@meta.data$sub_ccs` %in% unique(auc_subset_activating_mm$`gcm@meta.data$sub_ccs`)])))
+rownames(mean_auc_subset_activating_mm) <- mean_auc_subset_activating_mm$`gcm@meta.data$sub_ccs`
+mean_auc_subset_activating_mm <- mean_auc_subset_activating_mm[c("SAN head", "SAN tail", "Tz-SAN", "Compact AVN", "His bundle", "PF", "aCM", "vCM"),]
+mean_auc_subset_activating_mm$`gcm@meta.data$sub_ccs` <- NULL
+rownames(mean_auc_subset_activating_mm) <- c("SAN head", "SAN tail", "Tz-SAN", "Compact AVN", "His bundle", "PF", "aCM", "vCM")
+
+```
+
+# correlation (TF activities - AUC)
+```{r}
+
+scaled_hs <- as.data.frame(scale(subset(mean_auc_subset_activating_hs, rownames(mean_auc_subset_activating_hs) != 'aCM' & rownames(mean_auc_subset_activating_hs) != 'vCM')))
+scaled_mm <- as.data.frame(scale(subset(mean_auc_subset_activating_mm, rownames(mean_auc_subset_activating_mm) != 'aCM' & rownames(mean_auc_subset_activating_mm) != 'vCM')))
+
+# convert mouse tfs to human gene names (already in same order)
+colnames(scaled_mm) <- colnames(scaled_hs)
+
+# consistent region naming
+rownames(scaled_hs) <- c('SAN head', 'SAN tail', 'Tz-SAN', 'cAVN', 'HIS', 'PF')
+rownames(scaled_mm) <- c('SAN head', 'SAN tail', 'Tz-SAN', 'cAVN', 'HIS', 'PF')
+scaled_hs$region <- rownames(scaled_hs)
+scaled_mm$region <- rownames(scaled_mm)
+
+scaled_combined <- left_join(scaled_mm, scaled_hs, by = "region", suffix = c("_mm", "_hs"))
+
+# convert all relevant columns to numeric
+for (col in colnames(scaled_combined)) {
+  scaled_combined[[col]] <- as.numeric(as.character(scaled_combined[[col]]))
+}
+
+# initialize correlation dataframe
+corrs <- data.frame(TF = character(), Pearson = numeric(), stringsAsFactors = FALSE)
+
+# calculate Pearson correlation for each transcription factor
+for (tf in colnames(scaled_mm)) {
+  mouse_col <- scaled_combined[[paste0(tf, "_mm")]]
+  human_col <- scaled_combined[[paste0(tf, "_hs")]]
+  
+  # check columns are numeric vectors
+  if (is.numeric(mouse_col) && is.numeric(human_col)) {
+    pearson <- cor(mouse_col, human_col)
+    corrs <- rbind(corrs, data.frame(tf = tf, corr = pearson, stringsAsFactors = FALSE))
+  } else {
+    warning(paste("Skipping", tf, "due to non-numeric columns."))
+  }
+}
+
+rownames(corrs) <- corrs$tf
+corrs$tf <- NULL
+
+```
+
+# plot (positive and negative corr sepearetly)
+```{r}
+
+# approach2: separate positive and negative correlation
+
+corrs_pos <- subset(corrs, corrs$corr > 0)
+corrs_neg <- subset(corrs, corrs$corr < 0)
+
+mean_auc_subset_activating_hs_pos <- mean_auc_subset_activating_hs[,colnames(mean_auc_subset_activating_hs) %in% rownames(corrs_pos)]
+rownames(mean_auc_subset_activating_hs_pos) <- c("SA node (head)", "SA node (tail)", "Tz-SAN", "Compact AV node", "His bundle", "Purkinje fibers", "aCM", "vCM")
+
+mm_tfs_pos <- ortholog_df[ortholog_df$hs %in% rownames(corrs_pos), ]$mm
+mean_auc_subset_activating_mm_pos <- mean_auc_subset_activating_mm[colnames(mean_auc_subset_activating_mm) %in% mm_tfs_pos]
+rownames(mean_auc_subset_activating_mm_pos) <- c("SA node (head)", "SA node (tail)", "Tz-SAN", "Compact AV node", "His bundle", "Purkinje fibers", "aCM", "vCM")
+
+# sort by peak:
+
+sanh_tfs_max_hs <- c()
+sant_tfs_max_hs <- c()
+tzsan_tfs_max_hs <- c()
+avn_tfs_max_hs <- c()
+his_tfs_max_hs <- c()
+pf_tfs_max_hs <- c()
+# acm_tfs_max_hs <- c()
+# vcm_tfs_max_hs <- c()
+
+# Loop through each column (gene)
+for (tf in colnames(mean_auc_subset_activating_hs_pos)) {
+
+  # find ccs region with highest AUC value for this tf
+  region <- rownames(mean_auc_subset_activating_hs_pos)[which.max(mean_auc_subset_activating_hs_pos[rownames(mean_auc_subset_activating_hs_pos) %in% c("SA node (head)", "SA node (tail)", "Tz-SAN", "Compact AV node", "His bundle", "Purkinje fibers"),][[tf]])]
+
+  # Add the gene to the appropriate list based on the max value cell type
+  if (region == "SA node (head)") {
+    sanh_tfs_max_hs <- c(sanh_tfs_max_hs, tf)
+  } else if (region == "SA node (tail)") {
+    sant_tfs_max_hs <- c(sant_tfs_max_hs, tf)
+  } else if (region == "Tz-SAN") {
+    tzsan_tfs_max_hs <- c(tzsan_tfs_max_hs, tf)
+  } else if (region == "Compact AV node") {
+    avn_tfs_max_hs <- c(avn_tfs_max_hs, tf)
+  } else if (region == "His bundle") {
+    his_tfs_max_hs <- c(his_tfs_max_hs, tf)
+  } else if (region == "Purkinje fibers") {
+    pf_tfs_max_hs <- c(pf_tfs_max_hs, tf)
+  }
+}
+
+mean_auc_subset_activating_hs_pos <- mean_auc_subset_activating_hs_pos[, c(sanh_tfs_max_hs, sant_tfs_max_hs, tzsan_tfs_max_hs, avn_tfs_max_hs, his_tfs_max_hs, pf_tfs_max_hs)]
+rownames(mean_auc_subset_activating_hs_pos) <- c("SA node (head)", "SA node (tail)", "Tz-SAN", "Compact AV node", "His bundle", "Purkinje fibers", "aCM", "vCM")
+
+mm_order <- str_to_title(colnames(mean_auc_subset_activating_hs_pos))
+mm_order <- gsub("Znf704", "Zfp704", mm_order)
+mm_order <- gsub("Znf148", "Zfp148", mm_order)
+mm_order <- gsub("Znf281", "Zfp281", mm_order)
+mean_auc_subset_activating_mm_pos <- mean_auc_subset_activating_mm_pos[, mm_order]
+
+mean_auc_subset_activating_hs_pos <- mean_auc_subset_activating_hs_pos[, c(sanh_tfs_max_hs, sant_tfs_max_hs, tzsan_tfs_max_hs, avn_tfs_max_hs, his_tfs_max_hs, pf_tfs_max_hs)]
+
+tiff('20250728_mean_auc_heatmap_poscorr_hs_embryo.tiff', width = 10, height = 2.75, res = 800, units='in')
+
+pheatmap(mean_auc_subset_activating_hs_pos, 
+         scale='column', 
+         cluster_rows = F,
+         cluster_cols=F,
+         show_rownames = F,
+         border_color=NA,
+         angle_col=90,
+         legend=F,
+         color = colorRampPalette(c('#FEF4EC', '#FAD3B3', '#E45C3A'))(1000))
+
+dev.off()
+
+tiff('20250728_mean_auc_heatmap_poscorr_mm_embryo.tiff', width = 10, height = 2.75, res = 800, units='in')
+
+pheatmap(mean_auc_subset_activating_mm_pos, 
+         scale='column', 
+         cluster_rows = F,
+         cluster_cols = F,
+         show_rownames = F,
+         border_color=NA,
+         angle_col=90,
+         legend=F,
+         color = colorRampPalette(c('#EFF8FA', '#a9d6e5', '#1b4965'))(1000))
+
+dev.off()
+
+tiff('20250728_mean_auc_heatmap_poscorr_hs_embryo_legend.tiff', width = 10, height = 2.75, res = 800, units='in')
+
+pheatmap(mean_auc_subset_activating_hs_pos, 
+         scale='column', 
+         cluster_rows = F,
+         cluster_cols=F,
+         show_rownames = F,
+         border_color=NA,
+         angle_col=90,
+         color = colorRampPalette(c('#FEF4EC', '#FAD3B3', '#E45C3A'))(1000))
+
+dev.off()
+
+tiff('20250728_mean_auc_heatmap_poscorr_mm_embryo_legend.tiff', width = 10, height = 2.75, res = 800, units='in')
+
+pheatmap(mean_auc_subset_activating_mm_pos, 
+         scale='column', 
+         cluster_rows = F,
+         cluster_cols = F,
+         show_rownames = F,
+         border_color=NA,
+         angle_col=90,
+         color = colorRampPalette(c('#EFF8FA', '#a9d6e5', '#1b4965'))(1000))
+
+dev.off()
+
+
+# negative corr
+
+mean_auc_subset_activating_hs_neg <- mean_auc_subset_activating_hs[,colnames(mean_auc_subset_activating_hs) %in% rownames(corrs_neg)]
+rownames(mean_auc_subset_activating_hs_neg) <- c("SA node (head)", "SA node (tail)", "Tz-SAN", "Compact AV node", "His bundle", "Purkinje fibers", "aCM", "vCM")
+
+mm_tfs_neg <- ortholog_df[ortholog_df$hs %in% rownames(corrs_neg), ]$mm
+mean_auc_subset_activating_mm_neg <- mean_auc_subset_activating_mm[colnames(mean_auc_subset_activating_mm) %in% mm_tfs_neg]
+rownames(mean_auc_subset_activating_mm_neg) <- c("SA node (head)", "SA node (tail)", "Tz-SAN", "Compact AV node", "His bundle", "Purkinje fibers", "aCM", "vCM")
+
+# sort by peak:
+
+sanh_tfs_max_hs <- c()
+sant_tfs_max_hs <- c()
+tzsan_tfs_max_hs <- c()
+avn_tfs_max_hs <- c()
+his_tfs_max_hs <- c()
+pf_tfs_max_hs <- c()
+# acm_tfs_max_hs <- c()
+# vcm_tfs_max_hs <- c()
+
+# Loop through each column (gene)
+for (tf in colnames(mean_auc_subset_activating_hs_neg)) {
+
+  # find ccs region with highest AUC value for this tf
+  region <- rownames(mean_auc_subset_activating_hs_neg)[which.max(mean_auc_subset_activating_hs_neg[rownames(mean_auc_subset_activating_hs_neg) %in% c("SA node (head)", "SA node (tail)", "Tz-SAN", "Compact AV node", "His bundle", "Purkinje fibers"),][[tf]])]
+
+  # Add the gene to the appropriate list based on the max value cell type
+  if (region == "SA node (head)") {
+    sanh_tfs_max_hs <- c(sanh_tfs_max_hs, tf)
+  } else if (region == "SA node (tail)") {
+    sant_tfs_max_hs <- c(sant_tfs_max_hs, tf)
+  } else if (region == "Tz-SAN") {
+    tzsan_tfs_max_hs <- c(tzsan_tfs_max_hs, tf)
+  } else if (region == "Compact AV node") {
+    avn_tfs_max_hs <- c(avn_tfs_max_hs, tf)
+  } else if (region == "His bundle") {
+    his_tfs_max_hs <- c(his_tfs_max_hs, tf)
+  } else if (region == "Purkinje fibers") {
+    pf_tfs_max_hs <- c(pf_tfs_max_hs, tf)
+  }
+}
+
+mean_auc_subset_activating_hs_neg <- mean_auc_subset_activating_hs_neg[, c(sanh_tfs_max_hs, sant_tfs_max_hs, tzsan_tfs_max_hs, avn_tfs_max_hs, his_tfs_max_hs, pf_tfs_max_hs)]
+rownames(mean_auc_subset_activating_hs_neg) <- c("SA node (head)", "SA node (tail)", "Tz-SAN", "Compact AV node", "His bundle", "Purkinje fibers", "aCM", "vCM")
+
+mm_order <- str_to_title(colnames(mean_auc_subset_activating_hs_neg))
+mean_auc_subset_activating_mm_neg <- mean_auc_subset_activating_mm_neg[, mm_order]
+
+mean_auc_subset_activating_hs_neg <- mean_auc_subset_activating_hs_neg[, c(sanh_tfs_max_hs, sant_tfs_max_hs, tzsan_tfs_max_hs, avn_tfs_max_hs, his_tfs_max_hs, pf_tfs_max_hs)]
+
+
+# pheatmap(mean_auc_subset_activating_hs_neg, 
+#          scale='column', 
+#          cluster_rows = F,
+#          cluster_cols=F,
+#          show_rownames = F,
+#          border_color=NA,
+#          color = colorRampPalette(c('#EFF8FA', '#a9d6e5', '#1b4965'))(1000))
+# 
+# pheatmap(mean_auc_subset_activating_mm_neg, 
+#          scale='column', 
+#          cluster_rows = F,
+#          cluster_cols = F,
+#          show_rownames = F,
+#          border_color=NA,
+#          color = colorRampPalette(c('#FEF4EC', '#FAD3B3', '#E45C3A'))(1000))
+
+```
+
+# conserved links - embryo
+```{r}
+
+reg_act_hse <- read.csv('human_ivs_ra_ccs_raw_reg_mingenes5_20241003_activatingonly.csv')
+reg_act_mme <- read.csv('mouse_cm_ccs_raw_reg_v2_activatingonly.csv')
+
+extract_genes <- function(genelist) {
+  genes <- unlist(strsplit(genelist, "\\), \\("))  # split by "), ("
+  genes <- gsub("[^a-zA-Z0-9,]", "", genes) # remove unwanted characters
+  gene_list <- strsplit(genes, ",")
+  
+  # extract every alternate element starting from the first
+  return(unlist(gene_list)[seq(1, length(unlist(gene_list)), by = 2)])
+}
+
+reg_act_hse <- reg_act_hse[,c("X", "Enrichment.6")]
+reg_act_hse <- reg_act_hse[-c(1,2,3),]
+colnames(reg_act_hse)[colnames(reg_act_hse) == "X"] <- "tf"
+colnames(reg_act_hse)[colnames(reg_act_hse) == "Enrichment.6"] <- "targets"
+reg_act_hse <- reg_act_hse %>%
+  mutate(genelist = sapply(targets, extract_genes))
+reg_act_hse <- reg_act_hse %>% unnest(genelist)
+reg_act_hse <- reg_act_hse[reg_act_hse$tf %in% regulons_activating_hs,]
+
+reg_act_mme <- reg_act_mme[,c("X", "Enrichment.6")]
+reg_act_mme <- reg_act_mme[-c(1,2,3),]
+colnames(reg_act_mme)[colnames(reg_act_mme) == "X"] <- "tf"
+colnames(reg_act_mme)[colnames(reg_act_mme) == "Enrichment.6"] <- "targets"
+reg_act_mme <- reg_act_mme %>%
+  mutate(genelist = sapply(targets, extract_genes))
+reg_act_mme <- reg_act_mme %>% unnest(genelist)
+reg_act_mme <- reg_act_mme[reg_act_mme$tf %in% regulons_activating_mm,]
+
+
+# convert tf and genelist to hs
+
+reg_act_mme$tf <- ortholog_df$hs[match(reg_act_mme$tf, ortholog_df$mm)]
+reg_act_mme$genelist <- ortholog_df$hs[match(reg_act_mme$genelist, ortholog_df$mm)]
+
+reg_act_mme$pair <- paste(reg_act_mme$tf, reg_act_mme$genelist, sep = "_")
+reg_act_hse$pair <- paste(reg_act_hse$tf, reg_act_hse$genelist, sep = "_")
+
+shared_links_e <- intersect(reg_act_mme$pair, reg_act_hse$pair)
+
+shared_links_e <- shared_links_e[sub("^[^_]+_", "", shared_links_e) %in% c(shared_san_e, shared_avn_e, shared_his_e, shared_pf_e, shared_nodes_e, shared_vcs_e, hse_san, hse_avn, hse_his, hse_pf, hse_nodes, hse_vcs, ortholog_df[ortholog_df$mm %in% mme_san,]$hs, ortholog_df[ortholog_df$mm %in% mme_avn,]$hs, ortholog_df[ortholog_df$mm %in% mme_his,]$hs, ortholog_df[ortholog_df$mm %in% mme_pf,]$hs, ortholog_df[ortholog_df$mm %in% mme_nodes,]$hs, ortholog_df[ortholog_df$mm %in% mme_vcs,]$hs)]
+
+
+# shared_links_conserved_e <- shared_links_e[sub("^[^_]+_", "", shared_links_e) %in% c(shared_san_e, shared_avn_e, shared_his_e, shared_pf_e, shared_nodes_e, shared_vcs_e)]
+
+
+
+```
+
+
+# conserved links - adult
+```{r}
+
+reg_act_hsa <- read.csv('kanemaru_san_avn_ax_cm_raw_reg_mingenes5_activatingonly.csv')
+reg_act_mma <- read.csv('ccs_reg_10kb_500bp_min10pct_repress_mingenes5_activatingonly.csv')
+
+reg_act_hsa <- reg_act_hsa[,c("X", "Enrichment.6")]
+reg_act_hsa <- reg_act_hsa[-c(1,2,3),]
+colnames(reg_act_hsa)[colnames(reg_act_hsa) == "X"] <- "tf"
+colnames(reg_act_hsa)[colnames(reg_act_hsa) == "Enrichment.6"] <- "targets"
+reg_act_hsa <- reg_act_hsa %>%
+  mutate(genelist = sapply(targets, extract_genes))
+reg_act_hsa <- reg_act_hsa %>% unnest(genelist)
+reg_act_hsa <- reg_act_hsa[reg_act_hsa$tf %in% regulons_activating_hs,]
+
+reg_act_mma <- reg_act_mma[,c("X", "Enrichment.6")]
+reg_act_mma <- reg_act_mma[-c(1,2,3),]
+colnames(reg_act_mma)[colnames(reg_act_mma) == "X"] <- "tf"
+colnames(reg_act_mma)[colnames(reg_act_mma) == "Enrichment.6"] <- "targets"
+reg_act_mma <- reg_act_mma %>%
+  mutate(genelist = sapply(targets, extract_genes))
+reg_act_mma <- reg_act_mma %>% unnest(genelist)
+reg_act_mma <- reg_act_mma[reg_act_mma$tf %in% regulons_activating_mm,]
+
+# convert tf and genelist to hs
+
+reg_act_mma$tf <- ortholog_df$hs[match(reg_act_mma$tf, ortholog_df$mm)]
+reg_act_mma$genelist <- ortholog_df$hs[match(reg_act_mma$genelist, ortholog_df$mm)]
+
+reg_act_mma$pair <- paste(reg_act_mma$tf, reg_act_mma$genelist, sep = "_")
+reg_act_hsa$pair <- paste(reg_act_hsa$tf, reg_act_hsa$genelist, sep = "_")
+
+shared_links_a <- intersect(reg_act_mma$pair, reg_act_hsa$pair)
+
+shared_links_a <- shared_links_a[sub("^[^_]+_", "", shared_links_a) %in% c(shared_san_a, shared_avn_a, shared_his_a, shared_pf_a, shared_nodes_a, shared_vcs_a, hsa_san, hsa_avn, hsa_his, hsa_pf, hsa_nodes, hsa_vcs, ortholog_df[ortholog_df$mm %in% mmp_san,]$hs, ortholog_df[ortholog_df$mm %in% mmp_avn,]$hs, ortholog_df[ortholog_df$mm %in% mmp_his,]$hs, ortholog_df[ortholog_df$mm %in% mmp_pf,]$hs, ortholog_df[ortholog_df$mm %in% mmp_nodes,]$hs, ortholog_df[ortholog_df$mm %in% mmp_vcs,]$hs)]
+
+# shared_links_conserved_a <- shared_links_a[sub("^[^_]+_", "", shared_links_a) %in% c(shared_san_a, shared_avn_a, shared_his_a, shared_pf_a, shared_nodes_a, shared_vcs_a)]
+
+```
+
+```{r}
+
+edge_e <- as.data.frame(do.call(rbind, strsplit(shared_links_e, "_")))
+colnames(edge_e) <- c("tf", "target")
+edge_e$source <- "embryo"
+
+edge_a <- as.data.frame(do.call(rbind, strsplit(shared_links_a, "_")))
+colnames(edge_a) <- c("tf", "target")
+edge_a$source <- "adult"
+
+all_edges <- rbind(edge_e, edge_a)
+all_edges <- aggregate(source ~ tf + target, data = all_edges, FUN = function(x) {
+  if (length(unique(x)) > 1) "both" else unique(x)
+})
+
+valid_tfs <- unique(all_edges$tf[all_edges$target %in% c(shared_san_a, shared_avn_a, shared_his_a, shared_pf_a, shared_nodes_a, shared_vcs_a, shared_san_e, shared_avn_e, shared_his_e, shared_pf_e, shared_nodes_e, shared_vcs_e)])
+
+all_edges <- all_edges[all_edges$tf %in% valid_tfs,]
+
+network <- graph_from_data_frame(d = all_edges, directed = TRUE)
+
+V(network)$size <- 1.5
+V(network)$size[V(network)$name %in% c(shared_san_e, shared_avn_e, shared_his_e, shared_pf_e, shared_nodes_e, shared_vcs_e, shared_san_a, shared_avn_a, shared_his_a, shared_pf_a, shared_nodes_a, shared_vcs_a)] <- 7
+V(network)$size[V(network)$name %in% all_edges$tf] <- 11
+
+V(network)$labelfont <- 4
+V(network)$labelfont[V(network)$name %in% all_edges$tf] <- 2
+
+V(network)$colour <- '#fff'
+
+V(network)$colour[V(network)$name %in% shared_nodes_e] <- '#dfac90'
+V(network)$colour[V(network)$name %in% shared_nodes_a] <- '#BF9173'
+V(network)$colour[V(network)$name %in% intersect(shared_nodes_e, shared_nodes_a)] <- '#7f563a'
+
+V(network)$colour[V(network)$name %in% shared_san_e] <- '#f6b7bb'
+V(network)$colour[V(network)$name %in% shared_san_a] <- '#E85E61'
+V(network)$colour[V(network)$name %in% intersect(shared_san_e, shared_san_a)] <- '#761113'
+
+V(network)$colour[V(network)$name %in% shared_avn_e] <- '#ffdc86'
+V(network)$colour[V(network)$name %in% shared_avn_a] <- '#fdb714'
+V(network)$colour[V(network)$name %in% intersect(shared_avn_e, shared_avn_a)] <- '#e36526'
+
+V(network)$colour[V(network)$name %in% shared_vcs_e] <- '#DBE2E6'
+V(network)$colour[V(network)$name %in% shared_vcs_a] <- '#859cab'
+V(network)$colour[V(network)$name %in% intersect(shared_vcs_e, shared_vcs_a)] <- '#324048'
+
+V(network)$colour[V(network)$name %in% shared_his_e] <- '#b0d5e9'
+V(network)$colour[V(network)$name %in% shared_his_a] <- '#64AEE3'
+V(network)$colour[V(network)$name %in% intersect(shared_his_e, shared_his_a)] <- '#164f78'
+
+V(network)$colour[V(network)$name %in% shared_pf_e] <- '#C2B7CD'
+V(network)$colour[V(network)$name %in% shared_pf_a] <- '#8F7BA3'
+V(network)$colour[V(network)$name %in% intersect(shared_pf_e, shared_pf_a)] <- '#5C4B6C'
+
+V(network)$colour[V(network)$name %in% 'IGFBP5'] <- '#036e77' # pan-ccs
+
+V(network)$colour[V(network)$name %in% all_edges$tf] <- '#fff'
+
+V(network)$bordercolour <- 'black'
+
+E(network)$colour <- ifelse(E(network)$source == "both", "#000",
+                     ifelse(E(network)$source == "adult", "#6c757d", "#ced4da"))
+
+# E(network)$edgewidth <- ifelse(E(network) %in% c(shared_san_e, shared_avn_e, shared_his_e, shared_pf_e, shared_nodes_e, shared_vcs_e, shared_san_a, shared_avn_a, shared_his_a, shared_pf_a, shared_nodes_a, shared_vcs_a), 2, 1)
+
+V(network)$labelcolour <- 'black'
+V(network)$labelcolour[V(network)$name %in% shared_san_a] <- 'white'
+V(network)$labelcolour[V(network)$name %in% intersect(shared_nodes_e, shared_nodes_a)] <- 'white'
+V(network)$labelcolour[V(network)$name %in% intersect(shared_vcs_e, shared_vcs_a)] <- 'white'
+V(network)$labelcolour[V(network)$name %in% shared_pf_e] <- 'black'
+V(network)$labelcolour[V(network)$name %in% setdiff(shared_san_e, shared_san_a)] <- 'black'
+V(network)$labelcolour[V(network)$name %in% all_edges$tf] <- 'black'
+
+V(network)$borderwidth <- 1
+V(network)$borderwidth[V(network)$name %in% all_edges$tf] <- 1.5
+
+V(network)$label <- V(network)$name
+V(network)$label[V(network)$size == 1.5] <- NA
+
+sizes <- setNames(V(network)$size, V(network)$name)
+edge_targets <- ends(network, es = E(network), names = TRUE)[, 2]
+E(network)$width <- ifelse(sizes[edge_targets] == 1.5, 0.3, 1)
+
+#light_mask <- sizes[edge_targets] == 1.5
+#E(network)$colour[light_mask] <- "#DDE0E4"
+
+coords <- layout_with_fr(network, niter = 5000, grid = "nogrid")
+coords <- norm_coords(coords, xmin = -100, xmax = 100, ymin = -100, ymax = 100)
+
+tiff('20250727_network_conservedlinks.tiff', width = 12, height = 10, res=800, units ='in')  # inches
+par(mar = c(0,0,0,0))
+
+plot(network, 
+     edge.arrow.size=0.15, 
+     vertex.color=V(network)$colour,
+     vertex.label = V(network)$label,
+     vertex.label.family="sans",
+     vertex.label.color=V(network)$labelcolour, 
+     vertex.size=V(network)$size, 
+     vertex.label.cex=V(network)$size/17, 
+     vertex.label.font=V(network)$labelfont,
+     edge.color=E(network)$colour,
+     vertex.frame.color=V(network)$bordercolour,
+     vertex.frame.width=V(network)$borderwidth,
+     edge.width = E(network)$width,
+     layout=coords)
+
+dev.off()
+
+```
+
